@@ -40,10 +40,10 @@
         </div>
         <nav class="tabs" aria-label="Seccoes da aplicacao">
           <button class="tab-button active" data-tab="dashboard" type="button">Painel Geral</button>
-          <button class="tab-button" data-tab="control" type="button">Painel de Controle</button>
           <button class="tab-button" data-tab="income" type="button">Registrar Entradas</button>
           <button class="tab-button" data-tab="expense" type="button">Registrar Saidas</button>
           <button class="tab-button" data-tab="report" type="button">Relatorio</button>
+          <button class="tab-button" data-tab="control" type="button">Painel de Controle</button>
         </nav>
       </aside>
 
@@ -212,6 +212,30 @@
                   </div>
                 </div>
                 <div id="monthlyPaymentBreakdown"></div>
+              </section>
+              <section class="payment-breakdown" aria-label="Movimentos do mes">
+                <div class="panel-heading compact-heading">
+                  <div>
+                    <p class="eyebrow">Dados do mes</p>
+                    <h2>Movimentos do mes selecionado</h2>
+                  </div>
+                </div>
+                <div class="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Tipo</th>
+                        <th>Descricao</th>
+                        <th>Categoria/Cliente</th>
+                        <th>Localidade</th>
+                        <th>Metodo</th>
+                        <th>Data</th>
+                        <th class="money-cell">Valor</th>
+                      </tr>
+                    </thead>
+                    <tbody id="monthlyRows"></tbody>
+                  </table>
+                </div>
               </section>
               <label class="copy-box">
                 Relatorio mensal pronto para copiar
