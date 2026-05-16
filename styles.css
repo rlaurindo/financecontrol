@@ -159,15 +159,19 @@ textarea {
   margin-bottom: 34px;
 }
 
-.brand-mark {
-  display: grid;
-  width: 48px;
-  height: 48px;
-  place-items: center;
+.brand-logo {
+  background: #ffffff;
   border-radius: 8px;
-  background: var(--brand-accent);
-  color: #12241f;
-  font-weight: 800;
+  display: block;
+  height: 54px;
+  object-fit: contain;
+  padding: 4px;
+  width: 86px;
+}
+
+.auth-brand .brand-logo {
+  height: 74px;
+  width: 128px;
 }
 
 .brand strong,
