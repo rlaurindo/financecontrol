@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="pt">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Controle Integrado de Maio</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <section class="auth-screen" id="authScreen">
+      <form class="auth-card" id="loginForm">
+        <div class="brand auth-brand">
+          <span class="brand-mark">CI</span>
+          <div>
+            <strong>Controle Integrado</strong>
+            <span>Acesso seguro</span>
+          </div>
+        </div>
+        <label>
+          Email
+          <input name="email" type="email" autocomplete="username" required />
+        </label>
+        <label>
+          Senha
+          <input name="password" type="password" autocomplete="current-password" required />
+        </label>
+        <button type="submit">Entrar</button>
+        <p class="auth-hint">Crie os usuários em Supabase > Authentication > Users.</p>
+      </form>
+    </section>
+
+    <div class="app-shell locked" id="appShell">
+      <aside class="sidebar">
+        <div class="brand">
+          <span class="brand-mark">CI</span>
+          <div>
+            <strong>Controle Integrado</strong>
+            <span>Maio</span>
+          </div>
+        </div>
+        <nav class="tabs" aria-label="Seccoes da aplicacao">
+          <button class="tab-button active" data-tab="dashboard" type="button">Painel Geral</button>
+          <button class="tab-button" data-tab="control" type="button">Painel de Controle</button>
+          <button class="tab-button" data-tab="income" type="button">Registrar Entradas</button>
+          <button class="tab-button" data-tab="expense" type="button">Registrar Saidas</button>
+          <button class="tab-button" data-tab="report" type="button">Relatorio</button>
+        </nav>
+      </aside>
+
+      <main>
+        <section class="topbar" aria-label="Resumo principal">
+          <div>
+            <p class="eyebrow">Gestao financeira</p>
+            <h1>Controle Integrado de Maio</h1>
+          </div>
+          <div class="date-chip">
+            <span>Data</span>
+            <strong id="todayLabel"></strong>
+          </div>
+          <button class="secondary-button logout-button" id="logoutButton" type="button">Sair</button>
+        </section>
+
+        <section class="tab-panel active" id="dashboard">
+          <div class="metric-grid">
+            <article class="metric-card balance">
+              <span>Saldo mensal</span>
+              <strong id="monthlyBalance">€0,00</strong>
+              <small>Entradas menos despesas em maio</small>
+            </article>
+            <article class="metric-card">
+              <span>Entradas (balanco)</span>
+              <strong id="incomeTotal">€0,00</strong>
+              <small id="incomeCount">0 registros</small>
+            </article>
+            <article class="metric-card">
+              <span>Saidas (despesas)</span>
+              <strong id="expenseTotal">€0,00</strong>
+              <small id="expenseCount">0 registros</small>
+            </article>
+          </div>
+
+          <div class="dashboard-grid">
+            <section class="panel">
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">Por localidade</p>
+                  <h2>Valores separados por cidade</h2>
+                </div>
+              </div>
+              <div class="city-list" id="cityList"></div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">Historico</p>
+                  <h2>Fluxo de caixa dos ultimos 6 meses</h2>
+                </div>
+              </div>
+              <canvas id="cashFlowChart" width="760" height="380" aria-label="Grafico de fluxo de caixa"></canvas>
+            </section>
+          </div>
+
+          <section class="panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Movimentos recentes</p>
+                <h2>Ultimos registros</h2>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Tipo</th>
+                    <th>Descricao</th>
+                    <th>Localidade</th>
+                    <th>Metodo</th>
+                    <th>Data</th>
+                    <th class="money-cell">Valor</th>
+                  </tr>
+                </thead>
+                <tbody id="recentRows"></tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+
+        <section class="tab-panel" id="report">
+          <section class="panel report-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Acompanhamento para Cliente</p>
+                <h2>Relatorio semanal</h2>
+              </div>
+              <div class="report-actions">
+                <button class="secondary-button" id="copyReport" type="button">Copiar Resumo</button>
+                <button class="secondary-button" id="downloadReportImage" type="button">Gerar Imagem</button>
+                <button class="secondary-button" id="printReportPdf" type="button">Gerar PDF</button>
+              </div>
+            </div>
+            <div class="week-controls">
+              <label>
+                Selecionar semana
+                <input id="weekStart" type="date" />
+              </label>
+              <button class="secondary-button" id="selectWeekRecords" type="button">Selecionar registros da semana</button>
+            </div>
+            <div class="report-summary" id="weeklySummary"></div>
+            <section class="payment-breakdown" aria-label="Valores por metodo de pagamento">
+              <div class="panel-heading compact-heading">
+                <div>
+                  <p class="eyebrow">Detalhe financeiro</p>
+                  <h2>Valores por metodo de pagamento</h2>
+                </div>
+              </div>
+              <div id="paymentBreakdown"></div>
+            </section>
+            <div class="weekly-layout">
+              <section class="weekly-records" aria-label="Registros da semana">
+                <div class="panel-heading compact-heading">
+                  <div>
+                    <p class="eyebrow">Registros da semana</p>
+                    <h2>Selecionar movimentos</h2>
+                  </div>
+                </div>
+                <div id="weeklyRecords"></div>
+              </section>
+              <section class="weekly-chart" aria-label="Grafico da semana">
+                <div class="panel-heading compact-heading">
+                  <div>
+                    <p class="eyebrow">Performance diaria</p>
+                    <h2>Dias da semana</h2>
+                  </div>
+                </div>
+                <canvas id="weeklyChart" width="760" height="340" aria-label="Grafico diario semanal"></canvas>
+              </section>
+            </div>
+            <label class="copy-box">
+              Dados prontos para copiar e enviar por WhatsApp
+              <textarea id="weeklyReport" readonly></textarea>
+            </label>
+            <section class="monthly-report">
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">Acumulado mensal</p>
+                  <h2>Relatorio mensal</h2>
+                </div>
+                <button class="secondary-button" id="copyMonthlyReport" type="button">Copiar Mensal</button>
+              </div>
+              <div class="week-controls">
+                <label>
+                  Selecionar mes
+                  <input id="monthStart" type="month" />
+                </label>
+              </div>
+              <div class="report-summary" id="monthlyReportSummary"></div>
+              <section class="payment-breakdown" aria-label="Comparacao mensal">
+                <div class="panel-heading compact-heading">
+                  <div>
+                    <p class="eyebrow">Comparativo</p>
+                    <h2>Saldo contra mes anterior</h2>
+                  </div>
+                </div>
+                <div id="monthlyComparison"></div>
+              </section>
+              <section class="payment-breakdown" aria-label="Valores mensais por metodo de pagamento">
+                <div class="panel-heading compact-heading">
+                  <div>
+                    <p class="eyebrow">Detalhe financeiro</p>
+                    <h2>Mensal por metodo de pagamento</h2>
+                  </div>
+                </div>
+                <div id="monthlyPaymentBreakdown"></div>
+              </section>
+              <label class="copy-box">
+                Relatorio mensal pronto para copiar
+                <textarea id="monthlyReport" readonly></textarea>
+              </label>
+            </section>
+          </section>
+        </section>
+
+        <section class="tab-panel" id="control">
+          <section class="panel theme-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Aparencia</p>
+                <h2>Tema da aplicacao</h2>
+              </div>
+            </div>
+            <div class="theme-options" id="themeOptions" aria-label="Escolher tema">
+              <button class="theme-option" type="button" data-theme="green"><span style="background:#16735f"></span>Verde</button>
+              <button class="theme-option" type="button" data-theme="blue"><span style="background:#275f8f"></span>Azul</button>
+              <button class="theme-option" type="button" data-theme="gray"><span style="background:#66736d"></span>Cinza</button>
+              <button class="theme-option" type="button" data-theme="pink"><span style="background:#c4487c"></span>Rosa</button>
+              <button class="theme-option" type="button" data-theme="purple"><span style="background:#7650b5"></span>Roxo</button>
+            </div>
+          </section>
+          <section class="panel theme-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Seguranca</p>
+                <h2>Usuarios</h2>
+              </div>
+            </div>
+            <p class="auth-hint">Os usuários agora são criados no painel do Supabase em Authentication > Users.</p>
+          </section>
+          <div class="control-grid">
+            <section class="panel form-panel">
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">Saidas</p>
+                  <h2>Categorias de despesa</h2>
+                </div>
+              </div>
+              <form id="categoryForm" class="inline-form">
+                <label>
+                  Nova categoria
+                  <input name="category" type="text" placeholder="Ex.: Alimentacao" required />
+                </label>
+                <button type="submit">Adicionar</button>
+              </form>
+              <div class="admin-list" id="categoryList"></div>
+            </section>
+
+            <section class="panel form-panel">
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">Entradas e saidas</p>
+                  <h2>Localidades</h2>
+                </div>
+              </div>
+              <form id="locationForm" class="inline-form">
+                <label>
+                  Nova localidade
+                  <input name="location" type="text" placeholder="Ex.: Coimbra" required />
+                </label>
+                <button type="submit">Adicionar</button>
+              </form>
+              <div class="admin-list" id="locationList"></div>
+            </section>
+          </div>
+        </section>
+
+        <section class="tab-panel" id="income">
+          <section class="panel form-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Entradas</p>
+                <h2>Registrar nova entrada</h2>
+              </div>
+            </div>
+            <form id="incomeForm" class="entry-form">
+              <label>
+                Nome do cliente
+                <input name="clientName" type="text" required />
+              </label>
+              <label>
+                Nome do operacional
+                <input name="operatorName" type="text" required />
+              </label>
+              <label>
+                Data da entrada
+                <input name="date" type="date" required />
+              </label>
+              <label>
+                Metodo de pagamento
+                <select name="paymentMethod" class="payment-method" required>
+                  <option value="">Selecionar</option>
+                  <option>Dinheiro</option>
+                  <option>Cartao</option>
+                  <option>Transferencia</option>
+                  <option>MB WAY</option>
+                </select>
+              </label>
+              <label class="transfer-person hidden">
+                Nome da pessoa da transferencia/MB WAY
+                <input name="transferPerson" type="text" />
+              </label>
+              <label>
+                Localidade
+                <select name="city" class="location-select" required></select>
+              </label>
+              <label>
+                Valor
+                <input name="amount" type="number" min="0" step="0.01" required />
+              </label>
+              <label class="full">
+                Descricao
+                <textarea name="description" required></textarea>
+              </label>
+              <button type="submit">Guardar entrada</button>
+            </form>
+          </section>
+        </section>
+
+        <section class="tab-panel" id="expense">
+          <section class="panel form-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Saidas</p>
+                <h2>Registrar nova saida</h2>
+              </div>
+            </div>
+            <form id="expenseForm" class="entry-form">
+              <label class="full">
+                Descricao da despesa
+                <textarea name="description" required></textarea>
+              </label>
+              <label>
+                Valor
+                <input name="amount" type="number" min="0" step="0.01" required />
+              </label>
+              <label>
+                Categoria
+                <select name="category" id="expenseCategory" required></select>
+              </label>
+              <label>
+                Data do pagamento
+                <input name="date" type="date" required />
+              </label>
+              <label>
+                Metodo de pagamento
+                <select name="paymentMethod" class="payment-method" required>
+                  <option value="">Selecionar</option>
+                  <option>Dinheiro</option>
+                  <option>Cartao</option>
+                  <option>Transferencia</option>
+                  <option>MB WAY</option>
+                </select>
+              </label>
+              <label class="transfer-person hidden">
+                Nome da pessoa da transferencia/MB WAY
+                <input name="transferPerson" type="text" />
+              </label>
+              <label>
+                Localidade associada
+                <select name="city" class="location-select" required></select>
+              </label>
+              <button type="submit">Guardar saida</button>
+            </form>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script src="supabase-config.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
