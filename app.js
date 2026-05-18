@@ -477,25 +477,9 @@ async function saveNormalizedSupabaseState() {
 }
 
 function normalizeState(data) {
-  const categories = new Set([...(data.categories || defaultCategories), ...defaultCategories]);
-  const locations = new Set([...(data.locations || defaultLocations), ...defaultLocations]);
-  const operators = new Set([...(data.operators || defaultOperators), ...defaultOperators]);
-  (data.expenses || []).forEach((item) => {
-    if (item.category) {
-      categories.add(item.category);
-    }
-    if (item.city) {
-      locations.add(item.city);
-    }
-  });
-  (data.income || []).forEach((item) => {
-    if (item.city) {
-      locations.add(item.city);
-    }
-    if (item.operatorName) {
-      operators.add(item.operatorName);
-    }
-  });
+  const categories = new Set(Array.isArray(data.categories) ? data.categories : defaultCategories);
+  const locations = new Set(Array.isArray(data.locations) ? data.locations : defaultLocations);
+  const operators = new Set(Array.isArray(data.operators) ? data.operators : defaultOperators);
   return {
     income: data.income || [],
     expenses: data.expenses || [],
