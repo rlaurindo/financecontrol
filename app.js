@@ -208,9 +208,9 @@ function loadState() {
   return normalizeState(parsed);
 }
 
-function saveState() {
+async function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  saveRemoteState();
+  return saveRemoteState();
 }
 
 async function loadRemoteState() {
@@ -238,8 +238,7 @@ async function loadRemoteState() {
 
 async function saveRemoteState() {
   if (isSupabaseConfigured()) {
-    await saveSupabaseState();
-    return;
+    return saveSupabaseState();
   }
   try {
     await fetch("/api/state", {
@@ -247,8 +246,10 @@ async function saveRemoteState() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(state)
     });
+    return true;
   } catch {
     // Mantem a aplicacao funcional offline; os dados ficam no navegador.
+    return false;
   }
 }
 
@@ -296,9 +297,10 @@ async function loadSupabaseState() {
 
 async function saveSupabaseState() {
   if (await saveNormalizedSupabaseState()) {
-    return;
+    return true;
   }
   showToast("Nao foi possivel salvar nas tabelas do Supabase.");
+  return false;
 }
 
 async function supabaseRequest(path, options = {}) {
@@ -451,6 +453,7 @@ async function saveNormalizedSupabaseState() {
     });
     return true;
   } catch {
+    console.error("Falha ao salvar estado normalizado no Supabase.");
     return false;
   }
 }
@@ -1222,7 +1225,7 @@ async function handleLogin(event) {
   }
 }
 
-function addUniqueItem(listName, value) {
+async function addUniqueItem(listName, value) {
   const cleanValue = value.trim();
   if (!cleanValue) {
     return false;
@@ -1233,15 +1236,25 @@ function addUniqueItem(listName, value) {
   }
   state[listName].push(cleanValue);
   state[listName].sort((a, b) => a.localeCompare(b, "pt"));
-  saveState();
+  const saved = await saveState();
   renderDashboard();
-  return true;
+  return saved ? "saved" : "local";
 }
 
-function removeItem(listName, value) {
+async function removeItem(listName, value) {
   state[listName] = state[listName].filter((item) => item !== value);
-  saveState();
+  await saveState();
   renderDashboard();
+}
+
+function getAdminSaveMessage(result, label) {
+  if (result === "saved") {
+    return `${label}: gravado no Supabase.`;
+  }
+  if (result === "local") {
+    return `${label}: gravado apenas neste navegador. Verifique a tabela no Supabase.`;
+  }
+  return `${label} ja existe.`;
 }
 
 function paymentNeedsPerson(value) {
@@ -1528,49 +1541,49 @@ document.querySelector("#logoutButton").addEventListener("click", () => {
   setAuthenticated(null);
   showToast("Sessao encerrada.");
 });
-document.querySelector("#categoryForm").addEventListener("submit", (event) => {
+document.querySelector("#categoryForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
-  const added = addUniqueItem("categories", formToObject(form).category);
+  const added = await addUniqueItem("categories", formToObject(form).category);
   form.reset();
-  showToast(added ? "Categoria adicionada." : "Categoria ja existe.");
+  showToast(getAdminSaveMessage(added, "Categoria"));
 });
-document.querySelector("#locationForm").addEventListener("submit", (event) => {
+document.querySelector("#locationForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
-  const added = addUniqueItem("locations", formToObject(form).location);
+  const added = await addUniqueItem("locations", formToObject(form).location);
   form.reset();
-  showToast(added ? "Localidade adicionada." : "Localidade ja existe.");
+  showToast(getAdminSaveMessage(added, "Localidade"));
 });
-document.querySelector("#operatorForm").addEventListener("submit", (event) => {
+document.querySelector("#operatorForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
-  const added = addUniqueItem("operators", formToObject(form).operator);
+  const added = await addUniqueItem("operators", formToObject(form).operator);
   form.reset();
-  showToast(added ? "Operacional adicionado." : "Operacional ja existe.");
+  showToast(getAdminSaveMessage(added, "Operacional"));
 });
-document.querySelector("#categoryList").addEventListener("click", (event) => {
+document.querySelector("#categoryList").addEventListener("click", async (event) => {
   const category = event.target.dataset.removeCategory;
   if (!category) {
     return;
   }
-  removeItem("categories", category);
+  await removeItem("categories", category);
   showToast("Categoria removida.");
 });
-document.querySelector("#locationList").addEventListener("click", (event) => {
+document.querySelector("#locationList").addEventListener("click", async (event) => {
   const location = event.target.dataset.removeLocation;
   if (!location) {
     return;
   }
-  removeItem("locations", location);
+  await removeItem("locations", location);
   showToast("Localidade removida.");
 });
-document.querySelector("#operatorList").addEventListener("click", (event) => {
+document.querySelector("#operatorList").addEventListener("click", async (event) => {
   const operator = event.target.dataset.removeOperator;
   if (!operator) {
     return;
   }
-  removeItem("operators", operator);
+  await removeItem("operators", operator);
   showToast("Operacional removido.");
 });
 document.querySelector("#themeOptions").addEventListener("click", (event) => {

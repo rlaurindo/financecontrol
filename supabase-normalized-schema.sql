@@ -67,41 +67,41 @@ drop policy if exists "configuracoes_all" on public.configuracoes;
 create policy "entradas_all"
 on public.entradas
 for all
-to anon
+to anon, authenticated
 using (true)
 with check (true);
 
 create policy "saidas_all"
 on public.saidas
 for all
-to anon
+to anon, authenticated
 using (true)
 with check (true);
 
 create policy "categorias_all"
 on public.categorias
 for all
-to anon
+to anon, authenticated
 using (true)
 with check (true);
 
 create policy "localidades_all"
 on public.localidades
 for all
-to anon
+to anon, authenticated
 using (true)
 with check (true);
 
 create policy "operacionais_all"
 on public.operacionais
 for all
-to anon
+to anon, authenticated
 using (true)
 with check (true);
 
 create policy "configuracoes_all"
 on public.configuracoes
 for all
-to anon
+to anon, authenticated
 using (id = 1)
 with check (id = 1);
