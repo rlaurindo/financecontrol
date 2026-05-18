@@ -842,7 +842,6 @@ function renderWeeklyReport() {
   const expenseTotal = sum(weekExpenses);
   const balance = incomeTotal - expenseTotal;
   const attendanceTotal = weekIncome.length;
-  const averageTicket = attendanceTotal ? incomeTotal / attendanceTotal : 0;
 
   document.querySelector("#weeklySummary").innerHTML = `
     <div><span>Saldo semanal</span><strong>${currency.format(balance)}</strong></div>
@@ -882,8 +881,7 @@ function renderWeeklyReport() {
     ),
     "",
     "📈 *Resumo:*",
-    `• Total Atendimentos: ${attendanceTotal}`,
-    `• Ticket Médio: ${formatWhatsAppCurrency(averageTicket)}`
+    `• Total Atendimentos: ${attendanceTotal}`
   ].join("\n");
 }
 
@@ -947,7 +945,6 @@ function renderAttendantBreakdown(selector, attendantTotals) {
         <strong>${item.name}</strong>
         <span>Valor: ${currency.format(item.total)}</span>
         <span>Atendimentos: ${item.count}</span>
-        <span>Ticket medio: ${currency.format(item.count ? item.total / item.count : 0)}</span>
       </article>
     `).join("")
     : `<article class="payment-card"><strong>Sem atendentes</strong><span>Nenhuma entrada no periodo.</span></article>`;
@@ -967,7 +964,6 @@ function renderMonthlyReport() {
   const balanceDifference = balance - previousBalance;
   const positiveDifference = Math.max(0, balance) - Math.max(0, previousBalance);
   const attendanceTotal = monthIncome.length;
-  const averageTicket = attendanceTotal ? incomeTotal / attendanceTotal : 0;
   const paymentTotals = getPaymentMethodTotals(monthIncome, monthExpenses);
   const attendantTotals = getAttendantTotals(monthIncome);
   const monthRecords = [
@@ -1049,8 +1045,7 @@ function renderMonthlyReport() {
     ),
     "",
     "📌 *Resumo:*",
-    `• Total Atendimentos: ${attendanceTotal}`,
-    `• Ticket Médio: ${formatWhatsAppCurrency(averageTicket)}`
+    `• Total Atendimentos: ${attendanceTotal}`
   ].join("\n");
 }
 
