@@ -304,6 +304,22 @@
               </form>
               <div class="admin-list" id="locationList"></div>
             </section>
+            <section class="panel form-panel">
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">Entradas</p>
+                  <h2>Nome do operacional</h2>
+                </div>
+              </div>
+              <form id="operatorForm" class="inline-form">
+                <label>
+                  Novo operacional
+                  <input name="operator" type="text" placeholder="Ex.: Carlos Silva" required />
+                </label>
+                <button type="submit">Adicionar</button>
+              </form>
+              <div class="admin-list" id="operatorList"></div>
+            </section>
           </div>
         </section>
 
@@ -317,12 +333,12 @@
             </div>
             <form id="incomeForm" class="entry-form">
               <label>
-                Nome do cliente
+                Nome da atendente
                 <input name="clientName" type="text" required />
               </label>
               <label>
                 Nome do operacional
-                <input name="operatorName" type="text" required />
+                <select name="operatorName" class="operator-select" required></select>
               </label>
               <label>
                 Data da entrada

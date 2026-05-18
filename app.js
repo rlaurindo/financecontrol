@@ -1,6 +1,7 @@
 const STORAGE_KEY = "controle-integrado-maio-v1";
 const defaultCategories = ["Operacional", "Transporte", "Material", "Marketing", "Administrativo"];
 const defaultLocations = ["Porto", "Lisboa", "Faro", "Braga", "Funchal"];
+const defaultOperators = ["Ana Martins", "Rui Costa", "Sofia Reis", "Pedro Lima"];
 const defaultTheme = "green";
 const availableThemes = ["green", "blue", "gray", "pink", "purple"];
 const AUTH_SESSION_KEY = "controle-integrado-supabase-session";
@@ -189,6 +190,7 @@ const seedData = {
   ],
   categories: defaultCategories,
   locations: defaultLocations,
+  operators: defaultOperators,
   theme: defaultTheme,
   auth: defaultAuth
 };
@@ -403,15 +405,16 @@ function rowToExpense(row) {
 
 async function loadNormalizedSupabaseState() {
   try {
-    const [incomeRows, expenseRows, categoryRows, locationRows, settingsRows] = await Promise.all([
+    const [incomeRows, expenseRows, categoryRows, locationRows, operatorRows, settingsRows] = await Promise.all([
       supabaseRequest("entradas?select=*&order=entry_date.asc"),
       supabaseRequest("saidas?select=*&order=payment_date.asc"),
       supabaseRequest("categorias?select=*&order=name.asc"),
       supabaseRequest("localidades?select=*&order=name.asc"),
+      supabaseRequest("operacionais?select=*&order=name.asc"),
       supabaseRequest("configuracoes?id=eq.1&select=*")
     ]);
 
-    if (!settingsRows.length && !incomeRows.length && !expenseRows.length && !categoryRows.length && !locationRows.length) {
+    if (!settingsRows.length && !incomeRows.length && !expenseRows.length && !categoryRows.length && !locationRows.length && !operatorRows.length) {
       await saveNormalizedSupabaseState();
       return state;
     }
@@ -421,6 +424,7 @@ async function loadNormalizedSupabaseState() {
       expenses: expenseRows.map(rowToExpense),
       categories: categoryRows.map((row) => row.name),
       locations: locationRows.map((row) => row.name),
+      operators: operatorRows.map((row) => row.name),
       theme: settingsRows[0]?.theme || state.theme,
       auth: settingsRows[0]?.auth || state.auth
     };
@@ -453,6 +457,7 @@ async function saveNormalizedSupabaseState() {
     await replaceTable("saidas", state.expenses.map(expenseToRow));
     await replaceTable("categorias", state.categories.map((name) => ({ id: toSlugId("cat", name), name })));
     await replaceTable("localidades", state.locations.map((name) => ({ id: toSlugId("loc", name), name })));
+    await replaceTable("operacionais", state.operators.map((name) => ({ id: toSlugId("op", name), name })));
     await supabaseRequest("configuracoes", {
       method: "POST",
       headers: {
@@ -474,6 +479,7 @@ async function saveNormalizedSupabaseState() {
 function normalizeState(data) {
   const categories = new Set([...(data.categories || defaultCategories), ...defaultCategories]);
   const locations = new Set([...(data.locations || defaultLocations), ...defaultLocations]);
+  const operators = new Set([...(data.operators || defaultOperators), ...defaultOperators]);
   (data.expenses || []).forEach((item) => {
     if (item.category) {
       categories.add(item.category);
@@ -486,12 +492,16 @@ function normalizeState(data) {
     if (item.city) {
       locations.add(item.city);
     }
+    if (item.operatorName) {
+      operators.add(item.operatorName);
+    }
   });
   return {
     income: data.income || [],
     expenses: data.expenses || [],
     categories: [...categories],
     locations: [...locations],
+    operators: [...operators],
     theme: availableThemes.includes(data.theme) ? data.theme : defaultTheme,
     auth: {
       username: data.auth?.username || defaultAuth.username,
@@ -611,12 +621,22 @@ function renderDynamicSelects() {
       categorySelect.value = currentValue;
     }
   }
+
+  const operatorOptions = ['<option value="">Selecionar</option>', ...state.operators.map((item) => `<option>${item}</option>`)].join("");
+  document.querySelectorAll(".operator-select").forEach((select) => {
+    const currentValue = select.value;
+    select.innerHTML = operatorOptions;
+    if (state.operators.includes(currentValue)) {
+      select.value = currentValue;
+    }
+  });
 }
 
 function renderAdminPanel() {
   const categoryList = document.querySelector("#categoryList");
   const locationList = document.querySelector("#locationList");
-  if (!categoryList || !locationList) {
+  const operatorList = document.querySelector("#operatorList");
+  if (!categoryList || !locationList || !operatorList) {
     return;
   }
 
@@ -631,6 +651,13 @@ function renderAdminPanel() {
     <div class="admin-item">
       <strong>${location}</strong>
       <button class="icon-button" type="button" data-remove-location="${location}">Remover</button>
+    </div>
+  `).join("");
+
+  operatorList.innerHTML = state.operators.map((operator) => `
+    <div class="admin-item">
+      <strong>${operator}</strong>
+      <button class="icon-button" type="button" data-remove-operator="${operator}">Remover</button>
     </div>
   `).join("");
 }
@@ -923,6 +950,10 @@ function renderMonthlyReport() {
   const attendanceTotal = monthIncome.length;
   const averageTicket = attendanceTotal ? incomeTotal / attendanceTotal : 0;
   const paymentTotals = getPaymentMethodTotals(monthIncome, monthExpenses);
+  const monthRecords = [
+    ...monthIncome.map((item) => ({ ...item, type: "Entrada", amountType: "income", detail: item.clientName })),
+    ...monthExpenses.map((item) => ({ ...item, type: "Saida", amountType: "expense", detail: item.category }))
+  ].sort((a, b) => parseLocalDate(a.date) - parseLocalDate(b.date));
 
   document.querySelector("#monthlyReportSummary").innerHTML = `
     <div><span>Saldo mensal</span><strong>${currency.format(balance)}</strong></div>
@@ -953,6 +984,23 @@ function renderMonthlyReport() {
       <span>Saldo: ${currency.format(item.balance)}</span>
     </article>
   `).join("");
+
+  document.querySelector("#monthlyRows").innerHTML = monthRecords.length
+    ? monthRecords.map((item) => {
+      const method = item.transferPerson ? `${item.paymentMethod} - ${item.transferPerson}` : item.paymentMethod;
+      return `
+        <tr>
+          <td><span class="type-pill ${item.amountType}">${item.type}</span></td>
+          <td>${item.description}</td>
+          <td>${item.detail || "-"}</td>
+          <td>${item.city}</td>
+          <td>${method}</td>
+          <td>${dateFormatter.format(parseLocalDate(item.date))}</td>
+          <td class="money-cell">${currency.format(item.amount)}</td>
+        </tr>
+      `;
+    }).join("")
+    : `<tr><td colspan="7">Nenhum movimento encontrado neste mes.</td></tr>`;
 
   document.querySelector("#monthlyReport").value = [
     "Acompanhamento para Cliente",
@@ -1494,6 +1542,13 @@ document.querySelector("#locationForm").addEventListener("submit", (event) => {
   form.reset();
   showToast(added ? "Localidade adicionada." : "Localidade ja existe.");
 });
+document.querySelector("#operatorForm").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const added = addUniqueItem("operators", formToObject(form).operator);
+  form.reset();
+  showToast(added ? "Operacional adicionado." : "Operacional ja existe.");
+});
 document.querySelector("#categoryList").addEventListener("click", (event) => {
   const category = event.target.dataset.removeCategory;
   if (!category) {
@@ -1509,6 +1564,14 @@ document.querySelector("#locationList").addEventListener("click", (event) => {
   }
   removeItem("locations", location);
   showToast("Localidade removida.");
+});
+document.querySelector("#operatorList").addEventListener("click", (event) => {
+  const operator = event.target.dataset.removeOperator;
+  if (!operator) {
+    return;
+  }
+  removeItem("operators", operator);
+  showToast("Operacional removido.");
 });
 document.querySelector("#themeOptions").addEventListener("click", (event) => {
   const button = event.target.closest("[data-theme]");
