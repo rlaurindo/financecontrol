@@ -476,7 +476,10 @@ th {
   padding: 16px;
 }
 
-#paymentBreakdown {
+#paymentBreakdown,
+#monthlyPaymentBreakdown,
+.breakdown-grid,
+#monthlyComparison {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
@@ -780,6 +783,9 @@ button[type="submit"] {
   .weekly-layout,
   .report-summary,
   #paymentBreakdown,
+  #monthlyPaymentBreakdown,
+  .breakdown-grid,
+  #monthlyComparison,
   .control-grid,
   .inline-form,
   .entry-form {

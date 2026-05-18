@@ -853,7 +853,9 @@ function renderWeeklyReport() {
   renderWeeklyRecords(weekRecords);
   const dailyTotals = getDailyWeeklyTotals(start, weekIncome, weekExpenses);
   const paymentTotals = getPaymentMethodTotals(weekIncome, weekExpenses);
+  const attendantTotals = getAttendantTotals(weekIncome);
   renderPaymentBreakdown(paymentTotals);
+  renderAttendantBreakdown("#attendantBreakdown", attendantTotals);
   renderWeeklyChart(dailyTotals);
 
   document.querySelector("#weeklyReport").value = [
@@ -872,6 +874,11 @@ function renderWeeklyReport() {
     "💳 *Métodos de Pagamento:*",
     ...paymentTotals.map((item) =>
       `• ${item.method}: Entradas ${formatWhatsAppCurrency(item.income)} | Saídas ${formatWhatsAppCurrency(item.expense)} | Saldo ${formatWhatsAppCurrency(item.balance)}`
+    ),
+    "",
+    "👩 *Atendentes:*",
+    ...attendantTotals.map((item) =>
+      `• ${item.name}: ${formatWhatsAppCurrency(item.total)} (${item.count} atendimentos)`
     ),
     "",
     "📈 *Resumo:*",
@@ -918,6 +925,34 @@ function renderPaymentBreakdown(paymentTotals) {
   `).join("");
 }
 
+function getAttendantTotals(incomes) {
+  const totals = new Map();
+  incomes.forEach((item) => {
+    const name = item.clientName || "Sem atendente";
+    if (!totals.has(name)) {
+      totals.set(name, { name, total: 0, count: 0 });
+    }
+    const target = totals.get(name);
+    target.total += Number(item.amount || 0);
+    target.count += 1;
+  });
+  return [...totals.values()].sort((a, b) => b.total - a.total);
+}
+
+function renderAttendantBreakdown(selector, attendantTotals) {
+  const container = document.querySelector(selector);
+  container.innerHTML = attendantTotals.length
+    ? attendantTotals.map((item) => `
+      <article class="payment-card">
+        <strong>${item.name}</strong>
+        <span>Valor: ${currency.format(item.total)}</span>
+        <span>Atendimentos: ${item.count}</span>
+        <span>Ticket medio: ${currency.format(item.count ? item.total / item.count : 0)}</span>
+      </article>
+    `).join("")
+    : `<article class="payment-card"><strong>Sem atendentes</strong><span>Nenhuma entrada no periodo.</span></article>`;
+}
+
 function renderMonthlyReport() {
   const { start, end, year, month } = getMonthRange();
   const previous = getPreviousMonthRange(year, month);
@@ -934,6 +969,7 @@ function renderMonthlyReport() {
   const attendanceTotal = monthIncome.length;
   const averageTicket = attendanceTotal ? incomeTotal / attendanceTotal : 0;
   const paymentTotals = getPaymentMethodTotals(monthIncome, monthExpenses);
+  const attendantTotals = getAttendantTotals(monthIncome);
   const monthRecords = [
     ...monthIncome.map((item) => ({ ...item, type: "Entrada", amountType: "income", detail: item.clientName })),
     ...monthExpenses.map((item) => ({ ...item, type: "Saida", amountType: "expense", detail: item.category }))
@@ -968,6 +1004,7 @@ function renderMonthlyReport() {
       <span>Saldo: ${currency.format(item.balance)}</span>
     </article>
   `).join("");
+  renderAttendantBreakdown("#monthlyAttendantBreakdown", attendantTotals);
 
   document.querySelector("#monthlyRows").innerHTML = monthRecords.length
     ? monthRecords.map((item) => {
@@ -1004,6 +1041,11 @@ function renderMonthlyReport() {
     "💳 *Métodos de Pagamento:*",
     ...paymentTotals.map((item) =>
       `• ${item.method}: Entradas ${formatWhatsAppCurrency(item.income)} | Saídas ${formatWhatsAppCurrency(item.expense)} | Saldo ${formatWhatsAppCurrency(item.balance)}`
+    ),
+    "",
+    "👩 *Atendentes:*",
+    ...attendantTotals.map((item) =>
+      `• ${item.name}: ${formatWhatsAppCurrency(item.total)} (${item.count} atendimentos)`
     ),
     "",
     "📌 *Resumo:*",
