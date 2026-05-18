@@ -280,6 +280,16 @@ async function loadSupabaseState() {
     showToast("Dados carregados das tabelas Supabase.");
     return state;
   }
+  state = normalizeState({
+    income: [],
+    expenses: [],
+    categories: [],
+    locations: [],
+    operators: [],
+    theme: state.theme,
+    auth: state.auth
+  });
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   showToast("Nao foi possivel carregar as tabelas do Supabase.");
   return state;
 }
@@ -367,18 +377,25 @@ function rowToExpense(row) {
 
 async function loadNormalizedSupabaseState() {
   try {
-    const [incomeRows, expenseRows, categoryRows, locationRows, operatorRows, settingsRows] = await Promise.all([
+    const [incomeRows, expenseRows, categoryRows, locationRows, settingsRows] = await Promise.all([
       supabaseRequest("entradas?select=*&order=entry_date.asc"),
       supabaseRequest("saidas?select=*&order=payment_date.asc"),
       supabaseRequest("categorias?select=*&order=name.asc"),
       supabaseRequest("localidades?select=*&order=name.asc"),
-      supabaseRequest("operacionais?select=*&order=name.asc"),
       supabaseRequest("configuracoes?id=eq.1&select=*")
     ]);
+    const operatorRows = await supabaseRequest("operacionais?select=*&order=name.asc").catch(() => []);
 
     if (!settingsRows.length && !incomeRows.length && !expenseRows.length && !categoryRows.length && !locationRows.length && !operatorRows.length) {
-      await saveNormalizedSupabaseState();
-      return state;
+      return {
+        income: [],
+        expenses: [],
+        categories: [],
+        locations: [],
+        operators: [],
+        theme: state.theme,
+        auth: state.auth
+      };
     }
 
     return {
