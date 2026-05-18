@@ -273,60 +273,22 @@ function getSupabaseHeaders(extraHeaders = {}) {
 }
 
 async function loadSupabaseState() {
-  const config = getSupabaseConfig();
-  const normalizedState = await loadNormalizedSupabaseState(config);
+  const normalizedState = await loadNormalizedSupabaseState();
   if (normalizedState) {
     state = normalizeState(normalizedState);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     showToast("Dados carregados das tabelas Supabase.");
     return state;
   }
-
-  try {
-    const response = await fetch(`${config.url}/rest/v1/app_state?id=eq.1&select=data`, {
-      headers: getSupabaseHeaders(),
-      cache: "no-store"
-    });
-    if (!response.ok) {
-      throw new Error("Supabase indisponivel");
-    }
-    const rows = await response.json();
-    if (!rows.length) {
-      await saveSupabaseState();
-      showToast("Base Supabase iniciada.");
-      return state;
-    }
-    state = normalizeState(rows[0].data);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    showToast("Dados carregados do Supabase.");
-    return state;
-  } catch {
-    showToast("Supabase indisponivel. Usando dados locais.");
-    return state;
-  }
+  showToast("Nao foi possivel carregar as tabelas do Supabase.");
+  return state;
 }
 
 async function saveSupabaseState() {
   if (await saveNormalizedSupabaseState()) {
     return;
   }
-
-  const config = getSupabaseConfig();
-  try {
-    const response = await fetch(`${config.url}/rest/v1/app_state`, {
-      method: "POST",
-      headers: getSupabaseHeaders({
-        "Content-Type": "application/json",
-        Prefer: "resolution=merge-duplicates,return=minimal"
-      }),
-      body: JSON.stringify({ id: 1, data: state })
-    });
-    if (!response.ok) {
-      throw new Error("Falha ao salvar no Supabase");
-    }
-  } catch {
-    showToast("Nao foi possivel salvar no Supabase.");
-  }
+  showToast("Nao foi possivel salvar nas tabelas do Supabase.");
 }
 
 async function supabaseRequest(path, options = {}) {
