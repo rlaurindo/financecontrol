@@ -1085,6 +1085,7 @@ function renderWeeklyRecords(records) {
         <span>
           <strong>${dateFormatter.format(parseLocalDate(item.date))} · ${title} · ${currency.format(item.amount)}</strong>
           <span>${meta}</span>
+          <button class="table-action-button record-edit-button" type="button" data-edit-type="${item.recordType}" data-edit-id="${item.id}">Editar data e valor</button>
         </span>
       </label>
     `;
@@ -1745,6 +1746,14 @@ document.querySelector("#weeklyRecords").addEventListener("change", (event) => {
     selectedWeeklyIds.delete(recordId);
   }
   renderWeeklyReport();
+});
+document.querySelector("#weeklyRecords").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-edit-id]");
+  if (!button) {
+    return;
+  }
+  event.preventDefault();
+  editMovementDateAndAmount(button.dataset.editType, button.dataset.editId);
 });
 document.querySelector("#copyReport").addEventListener("click", async () => {
   const report = document.querySelector("#weeklyReport");

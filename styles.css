@@ -687,6 +687,11 @@ th {
   padding: 0 10px;
 }
 
+.record-edit-button {
+  margin-top: 8px;
+  width: fit-content;
+}
+
 .hidden {
   display: none;
 }
