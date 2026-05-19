@@ -700,8 +700,8 @@ function renderCities(incomes, expenses) {
 
 function renderRecentRows() {
   const rows = [
-    ...state.income.map((item) => ({ ...item, type: "Entrada", amountType: "income" })),
-    ...state.expenses.map((item) => ({ ...item, type: "Saida", amountType: "expense" }))
+    ...state.income.map((item) => ({ ...item, type: "Entrada", amountType: "income", recordType: "income" })),
+    ...state.expenses.map((item) => ({ ...item, type: "Saida", amountType: "expense", recordType: "expense" }))
   ]
     .sort((a, b) => parseLocalDate(b.date) - parseLocalDate(a.date))
     .slice(0, 8)
@@ -715,6 +715,7 @@ function renderRecentRows() {
           <td>${method}</td>
           <td>${dateFormatter.format(parseLocalDate(item.date))}</td>
           <td class="money-cell">${currency.format(item.amount)}</td>
+          <td><button class="table-action-button" type="button" data-edit-type="${item.recordType}" data-edit-id="${item.id}">Editar</button></td>
         </tr>
       `;
     })
@@ -981,8 +982,8 @@ function renderMonthlyReport() {
   const paymentTotals = getPaymentMethodTotals(monthIncome, monthExpenses);
   const attendantTotals = getAttendantTotals(monthIncome);
   const monthRecords = [
-    ...monthIncome.map((item) => ({ ...item, type: "Entrada", amountType: "income", detail: item.clientName })),
-    ...monthExpenses.map((item) => ({ ...item, type: "Saida", amountType: "expense", detail: item.category }))
+    ...monthIncome.map((item) => ({ ...item, type: "Entrada", amountType: "income", recordType: "income", detail: item.clientName })),
+    ...monthExpenses.map((item) => ({ ...item, type: "Saida", amountType: "expense", recordType: "expense", detail: item.category }))
   ].sort((a, b) => parseLocalDate(a.date) - parseLocalDate(b.date));
 
   document.querySelector("#monthlyReportSummary").innerHTML = `
@@ -1028,10 +1029,11 @@ function renderMonthlyReport() {
           <td>${method}</td>
           <td>${dateFormatter.format(parseLocalDate(item.date))}</td>
           <td class="money-cell">${currency.format(item.amount)}</td>
+          <td><button class="table-action-button" type="button" data-edit-type="${item.recordType}" data-edit-id="${item.id}">Editar</button></td>
         </tr>
       `;
     }).join("")
-    : `<tr><td colspan="7">Nenhum movimento encontrado neste mes.</td></tr>`;
+    : `<tr><td colspan="8">Nenhum movimento encontrado neste mes.</td></tr>`;
 
   document.querySelector("#monthlyReport").value = [
     "Acompanhamento para Cliente",
@@ -1277,6 +1279,41 @@ async function removeItem(listName, value) {
   state[listName] = state[listName].filter((item) => item !== value);
   await saveState();
   renderDashboard();
+}
+
+async function editMovementDateAndAmount(type, id) {
+  const listName = type === "income" ? "income" : "expenses";
+  const item = state[listName].find((record) => record.id === id);
+  if (!item) {
+    showToast("Movimento nao encontrado.");
+    return;
+  }
+
+  const newDate = window.prompt("Nova data do movimento (AAAA-MM-DD):", item.date);
+  if (newDate === null) {
+    return;
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(newDate) || Number.isNaN(parseLocalDate(newDate).getTime())) {
+    showToast("Data invalida. Use o formato AAAA-MM-DD.");
+    return;
+  }
+
+  const newAmountText = window.prompt("Novo valor em euro:", String(item.amount).replace(".", ","));
+  if (newAmountText === null) {
+    return;
+  }
+  const newAmount = Number(newAmountText.replace(",", "."));
+  if (!Number.isFinite(newAmount) || newAmount < 0) {
+    showToast("Valor invalido.");
+    return;
+  }
+
+  item.date = newDate;
+  item.amount = newAmount;
+  await saveState();
+  selectedWeeklyIds = null;
+  renderDashboard();
+  showToast("Movimento atualizado.");
 }
 
 function getAdminSaveMessage(result, label) {
@@ -1577,6 +1614,20 @@ document.querySelector("#loginForm").addEventListener("submit", handleLogin);
 document.querySelector("#logoutButton").addEventListener("click", () => {
   setAuthenticated(null);
   showToast("Sessao encerrada.");
+});
+document.querySelector("#recentRows").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-edit-id]");
+  if (!button) {
+    return;
+  }
+  editMovementDateAndAmount(button.dataset.editType, button.dataset.editId);
+});
+document.querySelector("#monthlyRows").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-edit-id]");
+  if (!button) {
+    return;
+  }
+  editMovementDateAndAmount(button.dataset.editType, button.dataset.editId);
 });
 document.querySelector("#categoryForm").addEventListener("submit", async (event) => {
   event.preventDefault();
