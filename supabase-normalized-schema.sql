@@ -43,6 +43,12 @@ create table if not exists public.operacionais (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.metodos_pagamento (
+  id text primary key,
+  name text not null unique,
+  created_at timestamptz not null default now()
+);
+
 create table if not exists public.configuracoes (
   id integer primary key check (id = 1),
   theme text not null default 'green',
@@ -55,6 +61,7 @@ alter table public.saidas enable row level security;
 alter table public.categorias enable row level security;
 alter table public.localidades enable row level security;
 alter table public.operacionais enable row level security;
+alter table public.metodos_pagamento enable row level security;
 alter table public.configuracoes enable row level security;
 
 drop policy if exists "entradas_all" on public.entradas;
@@ -62,6 +69,7 @@ drop policy if exists "saidas_all" on public.saidas;
 drop policy if exists "categorias_all" on public.categorias;
 drop policy if exists "localidades_all" on public.localidades;
 drop policy if exists "operacionais_all" on public.operacionais;
+drop policy if exists "metodos_pagamento_all" on public.metodos_pagamento;
 drop policy if exists "configuracoes_all" on public.configuracoes;
 
 create policy "entradas_all"
@@ -94,6 +102,13 @@ with check (true);
 
 create policy "operacionais_all"
 on public.operacionais
+for all
+to anon, authenticated
+using (true)
+with check (true);
+
+create policy "metodos_pagamento_all"
+on public.metodos_pagamento
 for all
 to anon, authenticated
 using (true)

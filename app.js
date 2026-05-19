@@ -2,6 +2,7 @@ const STORAGE_KEY = "controle-integrado-maio-v1";
 const defaultCategories = ["Operacional", "Transporte", "Material", "Marketing", "Administrativo"];
 const defaultLocations = ["Porto", "Lisboa", "Faro", "Braga", "Funchal"];
 const defaultOperators = ["Ana Martins", "Rui Costa", "Sofia Reis", "Pedro Lima"];
+const defaultPaymentMethods = ["Dinheiro", "Cartao", "Transferencia", "MB WAY"];
 const defaultTheme = "green";
 const availableThemes = ["green", "blue", "gray", "pink", "purple"];
 const AUTH_SESSION_KEY = "controle-integrado-supabase-session";
@@ -191,6 +192,7 @@ const seedData = {
   categories: defaultCategories,
   locations: defaultLocations,
   operators: defaultOperators,
+  paymentMethods: defaultPaymentMethods,
   theme: defaultTheme,
   auth: defaultAuth
 };
@@ -278,14 +280,19 @@ async function loadSupabaseState() {
   const normalizedState = await loadNormalizedSupabaseState();
   if (normalizedState) {
     const nextState = normalizeState(normalizedState);
+    let shouldSavePreservedLists = false;
     if (!nextState.operators.length && previousState.operators.length) {
       nextState.operators = previousState.operators;
-      state = nextState;
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      shouldSavePreservedLists = true;
+    }
+    if (!nextState.paymentMethods.length && previousState.paymentMethods.length) {
+      nextState.paymentMethods = previousState.paymentMethods;
+      shouldSavePreservedLists = true;
+    }
+    state = nextState;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    if (shouldSavePreservedLists) {
       await saveRemoteState();
-    } else {
-      state = nextState;
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     }
     showToast("Dados carregados das tabelas Supabase.");
     return state;
@@ -380,22 +387,24 @@ function rowToExpense(row) {
 
 async function loadNormalizedSupabaseState() {
   try {
-    const [incomeRows, expenseRows, categoryRows, locationRows, operatorRows, settingsRows] = await Promise.all([
+    const [incomeRows, expenseRows, categoryRows, locationRows, operatorRows, paymentMethodRows, settingsRows] = await Promise.all([
       supabaseRequest("entradas?select=*&order=entry_date.asc"),
       supabaseRequest("saidas?select=*&order=payment_date.asc"),
       supabaseRequest("categorias?select=*&order=name.asc"),
       supabaseRequest("localidades?select=*&order=name.asc"),
       supabaseRequest("operacionais?select=*&order=name.asc"),
+      supabaseRequest("metodos_pagamento?select=*&order=name.asc"),
       supabaseRequest("configuracoes?id=eq.1&select=*")
     ]);
 
-    if (!settingsRows.length && !incomeRows.length && !expenseRows.length && !categoryRows.length && !locationRows.length && !operatorRows.length) {
+    if (!settingsRows.length && !incomeRows.length && !expenseRows.length && !categoryRows.length && !locationRows.length && !operatorRows.length && !paymentMethodRows.length) {
       return {
         income: [],
         expenses: [],
         categories: [],
         locations: [],
         operators: [],
+        paymentMethods: [],
         theme: state.theme,
         auth: state.auth
       };
@@ -407,6 +416,7 @@ async function loadNormalizedSupabaseState() {
       categories: categoryRows.map((row) => row.name),
       locations: locationRows.map((row) => row.name),
       operators: operatorRows.map((row) => row.name),
+      paymentMethods: paymentMethodRows.map((row) => row.name),
       theme: settingsRows[0]?.theme || state.theme,
       auth: settingsRows[0]?.auth || state.auth
     };
@@ -440,6 +450,7 @@ async function saveNormalizedSupabaseState() {
     await replaceTable("categorias", state.categories.map((name) => ({ id: toSlugId("cat", name), name })));
     await replaceTable("localidades", state.locations.map((name) => ({ id: toSlugId("loc", name), name })));
     await replaceTable("operacionais", state.operators.map((name) => ({ id: toSlugId("op", name), name })));
+    await replaceTable("metodos_pagamento", state.paymentMethods.map((name) => ({ id: toSlugId("pay", name), name })));
     await supabaseRequest("configuracoes", {
       method: "POST",
       headers: {
@@ -463,12 +474,14 @@ function normalizeState(data) {
   const categories = new Set(Array.isArray(data.categories) ? data.categories : defaultCategories);
   const locations = new Set(Array.isArray(data.locations) ? data.locations : defaultLocations);
   const operators = new Set(Array.isArray(data.operators) ? data.operators : defaultOperators);
+  const paymentMethods = new Set(Array.isArray(data.paymentMethods) ? data.paymentMethods : defaultPaymentMethods);
   return {
     income: data.income || [],
     expenses: data.expenses || [],
     categories: [...categories],
     locations: [...locations],
     operators: [...operators],
+    paymentMethods: [...paymentMethods],
     theme: availableThemes.includes(data.theme) ? data.theme : defaultTheme,
     auth: {
       username: data.auth?.username || defaultAuth.username,
@@ -571,6 +584,16 @@ function applyTheme(theme) {
 }
 
 function renderDynamicSelects() {
+  const paymentMethodOptions = ['<option value="">Selecionar</option>', ...state.paymentMethods.map((item) => `<option>${item}</option>`)].join("");
+  document.querySelectorAll(".payment-method").forEach((select) => {
+    const currentValue = select.value;
+    select.innerHTML = paymentMethodOptions;
+    if (state.paymentMethods.includes(currentValue)) {
+      select.value = currentValue;
+    }
+    updateTransferPersonField(select);
+  });
+
   const locationOptions = ['<option value="">Selecionar</option>', ...state.locations.map((item) => `<option>${item}</option>`)].join("");
   document.querySelectorAll(".location-select").forEach((select) => {
     const currentValue = select.value;
@@ -603,7 +626,8 @@ function renderAdminPanel() {
   const categoryList = document.querySelector("#categoryList");
   const locationList = document.querySelector("#locationList");
   const operatorList = document.querySelector("#operatorList");
-  if (!categoryList || !locationList || !operatorList) {
+  const paymentMethodList = document.querySelector("#paymentMethodList");
+  if (!categoryList || !locationList || !operatorList || !paymentMethodList) {
     return;
   }
 
@@ -625,6 +649,13 @@ function renderAdminPanel() {
     <div class="admin-item">
       <strong>${operator}</strong>
       <button class="icon-button" type="button" data-remove-operator="${operator}">Remover</button>
+    </div>
+  `).join("");
+
+  paymentMethodList.innerHTML = state.paymentMethods.map((method) => `
+    <div class="admin-item">
+      <strong>${method}</strong>
+      <button class="icon-button" type="button" data-remove-payment-method="${method}">Remover</button>
     </div>
   `).join("");
 }
@@ -869,7 +900,7 @@ function renderWeeklyReport() {
 }
 
 function getPaymentMethodTotals(incomes, expenses) {
-  const methods = ["Dinheiro", "Cartao", "Transferencia", "MB WAY"];
+  const methods = state.paymentMethods.length ? state.paymentMethods : defaultPaymentMethods;
   const totals = new Map(methods.map((method) => [method, { method, income: 0, expense: 0, balance: 0 }]));
 
   incomes.forEach((item) => {
@@ -1259,7 +1290,12 @@ function getAdminSaveMessage(result, label) {
 }
 
 function paymentNeedsPerson(value) {
-  return ["Transferencia", "MB WAY"].includes(value);
+  const normalized = String(value || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, "");
+  return normalized === "transferencia" || normalized === "mbway";
 }
 
 function updateTransferPersonField(select) {
@@ -1563,6 +1599,13 @@ document.querySelector("#operatorForm").addEventListener("submit", async (event)
   form.reset();
   showToast(getAdminSaveMessage(added, "Operacional"));
 });
+document.querySelector("#paymentMethodForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const added = await addUniqueItem("paymentMethods", formToObject(form).paymentMethod);
+  form.reset();
+  showToast(getAdminSaveMessage(added, "Metodo de pagamento"));
+});
 document.querySelector("#categoryList").addEventListener("click", async (event) => {
   const category = event.target.dataset.removeCategory;
   if (!category) {
@@ -1586,6 +1629,14 @@ document.querySelector("#operatorList").addEventListener("click", async (event) 
   }
   await removeItem("operators", operator);
   showToast("Operacional removido.");
+});
+document.querySelector("#paymentMethodList").addEventListener("click", async (event) => {
+  const method = event.target.dataset.removePaymentMethod;
+  if (!method) {
+    return;
+  }
+  await removeItem("paymentMethods", method);
+  showToast("Metodo de pagamento removido.");
 });
 document.querySelector("#themeOptions").addEventListener("click", (event) => {
   const button = event.target.closest("[data-theme]");
@@ -1615,6 +1666,18 @@ document.querySelector("#selectWeekRecords").addEventListener("click", () => {
     ...state.income.filter((item) => inRange(item, start, end)).map((item) => item.id),
     ...state.expenses.filter((item) => inRange(item, start, end)).map((item) => item.id)
   ]);
+  renderWeeklyReport();
+});
+document.querySelector("#checkAllWeekRecords").addEventListener("click", () => {
+  const { start, end } = getWeekRange();
+  selectedWeeklyIds = new Set([
+    ...state.income.filter((item) => inRange(item, start, end)).map((item) => item.id),
+    ...state.expenses.filter((item) => inRange(item, start, end)).map((item) => item.id)
+  ]);
+  renderWeeklyReport();
+});
+document.querySelector("#uncheckAllWeekRecords").addEventListener("click", () => {
+  selectedWeeklyIds = new Set();
   renderWeeklyReport();
 });
 document.querySelector("#weeklyRecords").addEventListener("change", (event) => {
