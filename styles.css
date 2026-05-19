@@ -676,6 +676,17 @@ th {
   padding: 0 10px;
 }
 
+.table-action-button {
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--green-dark);
+  cursor: pointer;
+  font-weight: 800;
+  min-height: 32px;
+  padding: 0 10px;
+}
+
 .hidden {
   display: none;
 }
