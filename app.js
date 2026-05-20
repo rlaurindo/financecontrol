@@ -1591,6 +1591,10 @@ function getMainAmountFromLine(line) {
   return match ? Number(match[1].replace(",", ".")) : null;
 }
 
+function isFineLine(line) {
+  return /\bmulta\b/i.test(normalizeText(line));
+}
+
 function parseWhatsappImportText(text, attendant, city, importType = "attendance") {
   const records = [];
   let currentDate = null;
@@ -1616,7 +1620,7 @@ function parseWhatsappImportText(text, attendant, city, importType = "attendance
     }
 
     const paymentMethod = getPaymentMethodFromLine(cleanedLine);
-    const operatorName = getOperatorFromLine(cleanedLine);
+    const operatorName = importType === "attendance" && isFineLine(cleanedLine) ? "Agência" : getOperatorFromLine(cleanedLine);
     const lineAttendant = importType === "call" ? getAttendantFromLine(cleanedLine, "") : attendant;
     const serviceType = importType === "call" ? "Online" : "Atendimento";
     const finalAttendant = importType === "call" ? lineAttendant || "Agência" : attendant || "Nao identificado";
