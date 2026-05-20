@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Controle Integrado de Maio</title>
-    <link rel="stylesheet" href="styles.css?v=20260520-botoes-ajuste" />
+    <link rel="stylesheet" href="styles.css?v=20260520-validacao-import" />
   </head>
   <body>
     <section class="auth-screen" id="authScreen">
@@ -159,6 +159,7 @@
               <div class="import-actions">
                 <button class="secondary-button" id="processWhatsappImport" type="button">Processar texto</button>
                 <button class="secondary-button" id="clearWhatsappImport" type="button">Limpar</button>
+                <button class="secondary-button danger-soft-button" id="undoLastImport" type="button" disabled>Desfazer ultima importacao</button>
               </div>
             </div>
             <div class="import-status" id="importStatus">Nenhum texto processado.</div>
@@ -546,7 +547,7 @@
     </div>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <script src="supabase-config.js?v=20260520-botoes-ajuste"></script>
-    <script src="app.js?v=20260520-botoes-ajuste"></script>
+    <script src="supabase-config.js?v=20260520-validacao-import"></script>
+    <script src="app.js?v=20260520-validacao-import"></script>
   </body>
 </html>

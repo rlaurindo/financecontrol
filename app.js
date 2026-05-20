@@ -6,6 +6,7 @@ const defaultPaymentMethods = ["Dinheiro", "Cartao", "Transferencia", "MB WAY"];
 const defaultTheme = "green";
 const availableThemes = ["green", "blue", "gray", "pink", "purple"];
 const AUTH_SESSION_KEY = "controle-integrado-supabase-session";
+const LAST_IMPORT_KEY = "controle-integrado-last-import";
 const operatorEmojiMap = {
   "😈": "Erick",
   "😻": "Xavier",
@@ -475,6 +476,7 @@ function renderDashboard() {
   renderAdminPanel();
   renderDynamicSelects();
   renderImportPreview();
+  updateUndoImportButton();
 }
 
 function getCssColor(name) {
@@ -1379,10 +1381,58 @@ function addMissingListValues(listName, values) {
   state[listName].sort((a, b) => a.localeCompare(b, "pt"));
 }
 
+function getLastImportIds() {
+  try {
+    const value = JSON.parse(localStorage.getItem(LAST_IMPORT_KEY) || "[]");
+    return Array.isArray(value) ? value : [];
+  } catch {
+    return [];
+  }
+}
+
+function setLastImportIds(ids) {
+  localStorage.setItem(LAST_IMPORT_KEY, JSON.stringify(ids));
+  updateUndoImportButton();
+}
+
+function updateUndoImportButton() {
+  const button = document.querySelector("#undoLastImport");
+  if (!button) {
+    return;
+  }
+  button.disabled = getLastImportIds().length === 0;
+}
+
+function formatDateDash(value) {
+  const date = parseLocalDate(value);
+  return [
+    String(date.getDate()).padStart(2, "0"),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    date.getFullYear()
+  ].join("-");
+}
+
+function isAttendanceIncome(item) {
+  return (item.serviceType || inferServiceTypeFromDescription(item.description)) === "Atendimento";
+}
+
+function getImportDuplicateWarning(item) {
+  const exists = state.income.some((income) =>
+    isAttendanceIncome(income) &&
+    income.date === item.date &&
+    normalizeAttendantName(income.clientName).toLowerCase() === normalizeAttendantName(item.clientName).toLowerCase()
+  );
+  return exists ? `Ja existe registro para essa garota na data ${formatDateDash(item.date)}.` : "";
+}
+
 async function saveSelectedImportRows() {
   const selectedRows = importPreviewRecords.filter((item) => item.selected);
   if (!selectedRows.length) {
     showToast("Nenhum movimento selecionado.");
+    return;
+  }
+  const warnings = selectedRows.map((item) => item.warning).filter(Boolean);
+  if (warnings.length && !window.confirm(`${warnings[0]}\nDeseja guardar mesmo assim?`)) {
     return;
   }
   state.income.push(...selectedRows.map(({ selected, ...item }) => item));
@@ -1394,11 +1444,35 @@ async function saveSelectedImportRows() {
   await saveState("operators");
   await saveState("paymentMethods");
   await saveState("locations");
+  setLastImportIds(selectedRows.map((item) => item.id));
   importPreviewRecords = [];
   document.querySelector("#whatsappImportText").value = "";
   selectedWeeklyIds = null;
   renderDashboard();
   showToast(incomeSaved ? "Importacao guardada." : "Importacao guardada apenas neste navegador.");
+}
+
+async function undoLastImport() {
+  const ids = getLastImportIds();
+  if (!ids.length) {
+    showToast("Nenhuma importacao para desfazer.");
+    return;
+  }
+  const count = state.income.filter((item) => ids.includes(item.id)).length;
+  if (!count) {
+    setLastImportIds([]);
+    showToast("Importacao anterior ja nao foi encontrada.");
+    return;
+  }
+  if (!window.confirm(`Desfazer a ultima importacao e apagar ${count} registros?`)) {
+    return;
+  }
+  state.income = state.income.filter((item) => !ids.includes(item.id));
+  await saveState("income");
+  setLastImportIds([]);
+  selectedWeeklyIds = null;
+  renderDashboard();
+  showToast("Ultima importacao desfeita.");
 }
 
 function getAdminSaveMessage(result, label) {
@@ -1547,7 +1621,7 @@ function parseWhatsappImportText(text, attendant, city, importType = "attendance
     const serviceType = importType === "call" ? "Online" : "Atendimento";
     const finalAttendant = importType === "call" ? lineAttendant || "Agência" : attendant || "Nao identificado";
     const finalCity = importType === "call" ? "Online" : city;
-    records.push({
+    const record = {
       id: createId(),
       selected: true,
       clientName: finalAttendant,
@@ -1559,7 +1633,11 @@ function parseWhatsappImportText(text, attendant, city, importType = "attendance
       amount,
       serviceType,
       description: cleanedLine
-    });
+    };
+    if (importType === "attendance") {
+      record.warning = getImportDuplicateWarning(record);
+    }
+    records.push(record);
   });
 
   return records;
@@ -1585,7 +1663,7 @@ function renderImportPreview() {
         <td>${item.paymentMethod || "-"}</td>
         <td>${item.transferPerson || "-"}</td>
         <td class="money-cell">${currency.format(item.amount)}</td>
-        <td>${item.description}</td>
+        <td>${item.description}${item.warning ? `<span class="import-warning">${item.warning}</span>` : ""}</td>
       </tr>
     `).join("")
     : `<tr><td colspan="9">Cole o texto do WhatsApp e clique em processar.</td></tr>`;
@@ -1984,6 +2062,7 @@ document.querySelector("#importPreviewRows").addEventListener("change", (event) 
   renderImportPreview();
 });
 document.querySelector("#saveImportRows").addEventListener("click", saveSelectedImportRows);
+document.querySelector("#undoLastImport").addEventListener("click", undoLastImport);
 document.querySelector("#themeOptions").addEventListener("click", (event) => {
   const button = event.target.closest("[data-theme]");
   if (!button) {

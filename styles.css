@@ -656,6 +656,14 @@ th {
   width: 18px;
 }
 
+.import-warning {
+  color: var(--red);
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 800;
+  margin-top: 5px;
+}
+
 .control-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -754,6 +762,11 @@ th {
 }
 
 .danger-action-button {
+  background: #f4e4e1;
+  color: var(--red);
+}
+
+.danger-soft-button {
   background: #f4e4e1;
   color: var(--red);
 }
