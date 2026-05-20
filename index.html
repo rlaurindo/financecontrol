@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Controle Integrado de Maio</title>
-    <link rel="stylesheet" href="styles.css?v=20260520-save-por-tabela" />
+    <link rel="stylesheet" href="styles.css?v=20260520-online-localidade" />
   </head>
   <body>
     <section class="auth-screen" id="authScreen">
@@ -41,6 +41,7 @@
           <button class="tab-button active" data-tab="dashboard" type="button">Painel Geral</button>
           <button class="tab-button" data-tab="income" type="button">Registrar Entradas</button>
           <button class="tab-button" data-tab="expense" type="button">Registrar Saidas</button>
+          <button class="tab-button" data-tab="import" type="button">Importar WhatsApp</button>
           <button class="tab-button" data-tab="report" type="button">Relatorio</button>
           <button class="tab-button" data-tab="control" type="button">Painel de Controle</button>
         </nav>
@@ -126,6 +127,62 @@
           </section>
         </section>
 
+        <section class="tab-panel" id="import">
+          <section class="panel form-panel import-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Importacao</p>
+                <h2>Importar entradas do WhatsApp</h2>
+              </div>
+              <button class="secondary-button" id="saveImportRows" type="button" disabled>Guardar selecionados</button>
+            </div>
+            <div class="import-form">
+              <label>
+                Tipo de importacao
+                <select id="importType">
+                  <option value="attendance">Atendimento</option>
+                  <option value="call">Chamada/Video/Foto</option>
+                </select>
+              </label>
+              <label>
+                Nome da garota
+                <input id="importAttendant" type="text" placeholder="Ex.: Nome da garota do grupo" />
+              </label>
+              <label>
+                Localidade
+                <select id="importCity" class="location-select"></select>
+              </label>
+              <label class="full">
+                Texto copiado do WhatsApp
+                <textarea id="whatsappImportText" placeholder="Cole aqui o texto do grupo"></textarea>
+              </label>
+              <div class="import-actions">
+                <button id="processWhatsappImport" type="button">Processar texto</button>
+                <button class="secondary-button" id="clearWhatsappImport" type="button">Limpar</button>
+              </div>
+            </div>
+            <div class="import-status" id="importStatus">Nenhum texto processado.</div>
+            <div class="table-wrap import-preview-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Importar</th>
+                    <th>Data</th>
+                    <th>Garota</th>
+                    <th>Localidade</th>
+                    <th>Operacional</th>
+                    <th>Metodo</th>
+                    <th>Pessoa</th>
+                    <th class="money-cell">Valor</th>
+                    <th>Descricao original</th>
+                  </tr>
+                </thead>
+                <tbody id="importPreviewRows"></tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+
         <section class="tab-panel" id="report">
           <section class="panel report-panel">
             <div class="panel-heading">
@@ -156,14 +213,32 @@
               </div>
               <div id="paymentBreakdown"></div>
             </section>
-            <section class="payment-breakdown" aria-label="Valores por atendente">
+            <section class="payment-breakdown" aria-label="Valores presenciais">
               <div class="panel-heading compact-heading">
                 <div>
-                  <p class="eyebrow">Atendentes</p>
-                  <h2>Valor por atendente</h2>
+                  <p class="eyebrow">Presencial</p>
+                  <h2>Atendimento por garota</h2>
                 </div>
               </div>
-              <div class="breakdown-grid" id="attendantBreakdown"></div>
+              <div class="breakdown-grid" id="presentialBreakdown"></div>
+            </section>
+            <section class="payment-breakdown" aria-label="Valores online">
+              <div class="panel-heading compact-heading">
+                <div>
+                  <p class="eyebrow">Online</p>
+                  <h2>Chamada, video ou foto</h2>
+                </div>
+              </div>
+              <div class="breakdown-grid" id="onlineBreakdown"></div>
+            </section>
+            <section class="payment-breakdown" aria-label="Valores por localidade">
+              <div class="panel-heading compact-heading">
+                <div>
+                  <p class="eyebrow">Localidade</p>
+                  <h2>Valor por localidade</h2>
+                </div>
+              </div>
+              <div class="breakdown-grid" id="locationBreakdown"></div>
             </section>
             <div class="weekly-layout">
               <section class="weekly-records" aria-label="Registros da semana">
@@ -226,14 +301,32 @@
                 </div>
                 <div id="monthlyPaymentBreakdown"></div>
               </section>
-              <section class="payment-breakdown" aria-label="Valores mensais por atendente">
+              <section class="payment-breakdown" aria-label="Valores mensais presenciais">
                 <div class="panel-heading compact-heading">
                   <div>
-                    <p class="eyebrow">Atendentes</p>
-                    <h2>Mensal por atendente</h2>
+                    <p class="eyebrow">Presencial</p>
+                    <h2>Mensal atendimento presencial</h2>
                   </div>
                 </div>
-                <div class="breakdown-grid" id="monthlyAttendantBreakdown"></div>
+                <div class="breakdown-grid" id="monthlyPresentialBreakdown"></div>
+              </section>
+              <section class="payment-breakdown" aria-label="Valores mensais online">
+                <div class="panel-heading compact-heading">
+                  <div>
+                    <p class="eyebrow">Online</p>
+                    <h2>Mensal chamada, video e foto</h2>
+                  </div>
+                </div>
+                <div class="breakdown-grid" id="monthlyOnlineBreakdown"></div>
+              </section>
+              <section class="payment-breakdown" aria-label="Valores mensais por localidade">
+                <div class="panel-heading compact-heading">
+                  <div>
+                    <p class="eyebrow">Localidade</p>
+                    <h2>Mensal por localidade</h2>
+                  </div>
+                </div>
+                <div class="breakdown-grid" id="monthlyLocationBreakdown"></div>
               </section>
               <section class="payment-breakdown" aria-label="Movimentos do mes">
                 <div class="panel-heading compact-heading">
@@ -372,7 +465,7 @@
             </div>
             <form id="incomeForm" class="entry-form">
               <label>
-                Nome da atendente
+                Nome da garota
                 <input name="clientName" type="text" required />
               </label>
               <label>
@@ -453,7 +546,7 @@
     </div>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <script src="supabase-config.js?v=20260520-save-por-tabela"></script>
-    <script src="app.js?v=20260520-save-por-tabela"></script>
+    <script src="supabase-config.js?v=20260520-online-localidade"></script>
+    <script src="app.js?v=20260520-online-localidade"></script>
   </body>
 </html>

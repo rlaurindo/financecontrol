@@ -6,6 +6,51 @@ const defaultPaymentMethods = ["Dinheiro", "Cartao", "Transferencia", "MB WAY"];
 const defaultTheme = "green";
 const availableThemes = ["green", "blue", "gray", "pink", "purple"];
 const AUTH_SESSION_KEY = "controle-integrado-supabase-session";
+const operatorEmojiMap = {
+  "😈": "Erick",
+  "😻": "Xavier",
+  "🌳": "Tayane",
+  "❤️": "Erica",
+  "♥️": "Erica",
+  "♥": "Erica",
+  "✨": "Cachos",
+  "🍑": "Duda",
+  "💙": "Ana"
+};
+const attendantLocationMap = {
+  ray: "Porto",
+  duda: "Guimaraes",
+  bea: "Guimaraes",
+  vit: "Brasil",
+  vitoria: "Brasil",
+  laura: "Porto",
+  raquel: "Porto",
+  gi: "Braga",
+  gih: "Braga",
+  mineira: "Leiria",
+  larissa: "Porto",
+  isa: "Leiria",
+  isadora: "Leiria",
+  kemy: "Braga",
+  rosario: "Braga"
+};
+const attendantNameMap = {
+  vit: "Vitória",
+  vitoria: "Vitória",
+  gi: "Gi",
+  gih: "Gi",
+  isa: "Isa",
+  isadora: "Isa",
+  rosario: "Rosário",
+  kemy: "Kemy",
+  bea: "Bea",
+  duda: "Duda",
+  ray: "Ray",
+  laura: "Laura",
+  raquel: "Raquel",
+  mineira: "Mineira",
+  larissa: "Larissa"
+};
 const defaultAuth = {
   username: "admin",
   password: "admin123"
@@ -45,6 +90,7 @@ const seedData = {
 
 let state = loadState();
 let selectedWeeklyIds = null;
+let importPreviewRecords = [];
 
 function loadState() {
   const stored = localStorage.getItem(STORAGE_KEY);
@@ -175,11 +221,12 @@ function incomeToRow(item) {
     transfer_person: item.transferPerson || "",
     city: item.city,
     amount: Number(item.amount || 0),
-    description: item.description
+    description: item.serviceType ? `[${item.serviceType}] ${item.description}` : item.description
   };
 }
 
 function rowToIncome(row) {
+  const parsedDescription = stripServiceTypePrefix(row.description);
   return {
     id: row.id,
     clientName: row.client_name,
@@ -189,7 +236,8 @@ function rowToIncome(row) {
     transferPerson: row.transfer_person || "",
     city: row.city,
     amount: Number(row.amount || 0),
-    description: row.description
+    description: parsedDescription.description,
+    serviceType: parsedDescription.serviceType
   };
 }
 
@@ -426,6 +474,7 @@ function renderDashboard() {
   renderMonthlyReport();
   renderAdminPanel();
   renderDynamicSelects();
+  renderImportPreview();
 }
 
 function getCssColor(name) {
@@ -572,7 +621,12 @@ function renderRecentRows() {
           <td>${method}</td>
           <td>${dateFormatter.format(parseLocalDate(item.date))}</td>
           <td class="money-cell">${currency.format(item.amount)}</td>
-          <td><button class="table-action-button" type="button" data-edit-type="${item.recordType}" data-edit-id="${item.id}">Editar</button></td>
+          <td>
+            <div class="table-actions">
+              <button class="table-action-button" type="button" data-edit-type="${item.recordType}" data-edit-id="${item.id}">Editar</button>
+              <button class="table-action-button danger-action-button" type="button" data-delete-type="${item.recordType}" data-delete-id="${item.id}">Apagar</button>
+            </div>
+          </td>
         </tr>
       `;
     })
@@ -680,6 +734,31 @@ function getPreviousMonthRange(year, month) {
   return { start, end };
 }
 
+function getPreviousWeekRange(start) {
+  const previousStart = new Date(start);
+  previousStart.setDate(start.getDate() - 7);
+  const previousEnd = new Date(previousStart);
+  previousEnd.setDate(previousStart.getDate() + 6);
+  previousEnd.setHours(23, 59, 59, 999);
+  return { start: previousStart, end: previousEnd };
+}
+
+function getIncomeVariation(currentValue, previousValue) {
+  if (!previousValue && currentValue > 0) {
+    return { label: "Variação de entradas", text: "Sem base anterior", className: "positive" };
+  }
+  if (!previousValue && !currentValue) {
+    return { label: "Variação de entradas", text: "0,0% vs. período anterior", className: "neutral" };
+  }
+  const percent = ((currentValue - previousValue) / previousValue) * 100;
+  const sign = percent > 0 ? "+" : "";
+  return {
+    label: "Variação de entradas",
+    text: `${sign}${percent.toFixed(1).replace(".", ",")}% vs. período anterior`,
+    className: percent >= 0 ? "positive" : "negative"
+  };
+}
+
 function monthTitle(date) {
   return new Intl.DateTimeFormat("pt-PT", {
     month: "long",
@@ -694,8 +773,10 @@ function inRange(item, start, end) {
 
 function renderWeeklyReport() {
   const { start, end } = getWeekRange();
+  const previousWeek = getPreviousWeekRange(start);
   const weekIncomeAll = state.income.filter((item) => inRange(item, start, end));
   const weekExpensesAll = state.expenses.filter((item) => inRange(item, start, end));
+  const previousWeekIncome = state.income.filter((item) => inRange(item, previousWeek.start, previousWeek.end));
   const weekRecords = [
     ...weekIncomeAll.map((item) => ({ ...item, recordType: "income" })),
     ...weekExpensesAll.map((item) => ({ ...item, recordType: "expense" }))
@@ -713,20 +794,28 @@ function renderWeeklyReport() {
   const incomeTotal = sum(weekIncome);
   const expenseTotal = sum(weekExpenses);
   const balance = incomeTotal - expenseTotal;
+  const incomeVariation = getIncomeVariation(incomeTotal, sum(previousWeekIncome));
   const attendanceTotal = weekIncome.length;
 
   document.querySelector("#weeklySummary").innerHTML = `
     <div><span>Saldo semanal</span><strong>${currency.format(balance)}</strong></div>
     <div><span>Entradas semanal</span><strong>${currency.format(incomeTotal)}</strong></div>
     <div><span>Saidas semanal</span><strong>${currency.format(expenseTotal)}</strong></div>
+    <div class="variation-card ${incomeVariation.className}"><span>${incomeVariation.label}</span><strong>${incomeVariation.text}</strong></div>
   `;
 
   renderWeeklyRecords(weekRecords);
   const dailyTotals = getDailyWeeklyTotals(start, weekIncome, weekExpenses);
   const paymentTotals = getPaymentMethodTotals(weekIncome, weekExpenses);
-  const attendantTotals = getAttendantTotals(weekIncome);
+  const presentialIncome = getIncomesByServiceType(weekIncome, "Atendimento");
+  const onlineIncome = getIncomesByServiceType(weekIncome, "Online");
+  const presentialTotals = getAttendantTotals(presentialIncome);
+  const onlineTotals = getAttendantTotals(onlineIncome);
+  const locationTotals = getLocationTotals(weekIncome);
   renderPaymentBreakdown(paymentTotals);
-  renderAttendantBreakdown("#attendantBreakdown", attendantTotals);
+  renderAttendantBreakdown("#presentialBreakdown", presentialTotals, "Sem presencial");
+  renderAttendantBreakdown("#onlineBreakdown", onlineTotals, "Sem online");
+  renderSimpleBreakdown("#locationBreakdown", locationTotals, "Sem localidade");
   renderWeeklyChart(dailyTotals);
 
   document.querySelector("#weeklyReport").value = [
@@ -738,6 +827,7 @@ function renderWeeklyReport() {
     `• Entradas: ${formatWhatsAppCurrency(incomeTotal)}`,
     `• Saídas: ${formatWhatsAppCurrency(expenseTotal)}`,
     `• Saldo Líquido: ${formatWhatsAppCurrency(balance)}`,
+    `• ${incomeVariation.label}: ${incomeVariation.text}`,
     "",
     "📅 *Performance Diária:*",
     ...dailyTotals.map((item) => `• ${item.label} (${formatShortDate(item.date)}): ${formatWhatsAppCurrency(item.balance)}`),
@@ -747,13 +837,23 @@ function renderWeeklyReport() {
       `• ${item.method}: Entradas ${formatWhatsAppCurrency(item.income)} | Saídas ${formatWhatsAppCurrency(item.expense)} | Saldo ${formatWhatsAppCurrency(item.balance)}`
     ),
     "",
-    "👩 *Atendentes:*",
-    ...attendantTotals.map((item) =>
-      `• ${item.name}: ${formatWhatsAppCurrency(item.total)} (${item.count} atendimentos)`
+    "🏢 *Presencial:*",
+    ...presentialTotals.map((item) =>
+      `• ${item.name}: ${formatWhatsAppCurrency(item.total)} (${item.count} registros)`
+    ),
+    "",
+    "🌐 *Online:*",
+    ...onlineTotals.map((item) =>
+      `• ${item.name}: ${formatWhatsAppCurrency(item.total)} (${item.count} registros)`
+    ),
+    "",
+    "📍 *Localidades:*",
+    ...locationTotals.map((item) =>
+      `• ${item.name}: ${formatWhatsAppCurrency(item.total)} (${item.count} registros)`
     ),
     "",
     "📈 *Resumo:*",
-    `• Total Atendimentos: ${attendanceTotal}`
+    `• Total Registros: ${attendanceTotal}`
   ].join("\n");
 }
 
@@ -798,7 +898,7 @@ function renderPaymentBreakdown(paymentTotals) {
 function getAttendantTotals(incomes) {
   const totals = new Map();
   incomes.forEach((item) => {
-    const name = item.clientName || "Sem atendente";
+    const name = normalizeAttendantName(item.clientName) || "Sem garota";
     if (!totals.has(name)) {
       totals.set(name, { name, total: 0, count: 0 });
     }
@@ -809,17 +909,65 @@ function getAttendantTotals(incomes) {
   return [...totals.values()].sort((a, b) => b.total - a.total);
 }
 
-function renderAttendantBreakdown(selector, attendantTotals) {
+function getIncomesByServiceType(incomes, serviceType) {
+  return incomes.filter((item) => (item.serviceType || inferServiceTypeFromDescription(item.description)) === serviceType);
+}
+
+function getLocationTotals(incomes) {
+  const totals = new Map();
+  incomes.forEach((item) => {
+    const name = item.city || "Sem localidade";
+    if (!totals.has(name)) {
+      totals.set(name, { name, total: 0, count: 0 });
+    }
+    const target = totals.get(name);
+    target.total += Number(item.amount || 0);
+    target.count += 1;
+  });
+  return [...totals.values()].sort((a, b) => b.total - a.total);
+}
+
+function getServiceTypeTotals(incomes) {
+  const totals = new Map([
+    ["Atendimento", { name: "Atendimento por garota", total: 0, count: 0 }],
+    ["Online", { name: "Online", total: 0, count: 0 }]
+  ]);
+  incomes.forEach((item) => {
+    const key = item.serviceType || inferServiceTypeFromDescription(item.description);
+    const target = totals.get(key) || totals.get("Atendimento");
+    target.total += Number(item.amount || 0);
+    target.count += 1;
+  });
+  return [...totals.values()];
+}
+
+function renderAttendantBreakdown(selector, attendantTotals, emptyTitle = "Sem registros") {
   const container = document.querySelector(selector);
   container.innerHTML = attendantTotals.length
     ? attendantTotals.map((item) => `
       <article class="payment-card">
         <strong>${item.name}</strong>
         <span>Valor: ${currency.format(item.total)}</span>
-        <span>Atendimentos: ${item.count}</span>
+        <span>Registros: ${item.count}</span>
       </article>
     `).join("")
-    : `<article class="payment-card"><strong>Sem atendentes</strong><span>Nenhuma entrada no periodo.</span></article>`;
+    : `<article class="payment-card"><strong>${emptyTitle}</strong><span>Nenhuma entrada no periodo.</span></article>`;
+}
+
+function renderSimpleBreakdown(selector, items, emptyTitle = "Sem registros") {
+  const container = document.querySelector(selector);
+  if (!container) {
+    return;
+  }
+  container.innerHTML = items.length
+    ? items.map((item) => `
+      <article class="payment-card">
+        <strong>${item.name}</strong>
+        <span>Valor: ${currency.format(item.total)}</span>
+        <span>Registros: ${item.count}</span>
+      </article>
+    `).join("")
+    : `<article class="payment-card"><strong>${emptyTitle}</strong><span>Nenhuma entrada no periodo.</span></article>`;
 }
 
 function renderMonthlyReport() {
@@ -835,9 +983,14 @@ function renderMonthlyReport() {
   const previousBalance = sum(previousIncome) - sum(previousExpenses);
   const balanceDifference = balance - previousBalance;
   const positiveDifference = Math.max(0, balance) - Math.max(0, previousBalance);
+  const incomeVariation = getIncomeVariation(incomeTotal, sum(previousIncome));
   const attendanceTotal = monthIncome.length;
   const paymentTotals = getPaymentMethodTotals(monthIncome, monthExpenses);
-  const attendantTotals = getAttendantTotals(monthIncome);
+  const presentialIncome = getIncomesByServiceType(monthIncome, "Atendimento");
+  const onlineIncome = getIncomesByServiceType(monthIncome, "Online");
+  const presentialTotals = getAttendantTotals(presentialIncome);
+  const onlineTotals = getAttendantTotals(onlineIncome);
+  const locationTotals = getLocationTotals(monthIncome);
   const monthRecords = [
     ...monthIncome.map((item) => ({ ...item, type: "Entrada", amountType: "income", recordType: "income", detail: item.clientName })),
     ...monthExpenses.map((item) => ({ ...item, type: "Saida", amountType: "expense", recordType: "expense", detail: item.category }))
@@ -847,6 +1000,7 @@ function renderMonthlyReport() {
     <div><span>Saldo mensal</span><strong>${currency.format(balance)}</strong></div>
     <div><span>Entradas mensal</span><strong>${currency.format(incomeTotal)}</strong></div>
     <div><span>Saidas mensal</span><strong>${currency.format(expenseTotal)}</strong></div>
+    <div class="variation-card ${incomeVariation.className}"><span>${incomeVariation.label}</span><strong>${incomeVariation.text}</strong></div>
   `;
 
   document.querySelector("#monthlyComparison").innerHTML = `
@@ -872,7 +1026,9 @@ function renderMonthlyReport() {
       <span>Saldo: ${currency.format(item.balance)}</span>
     </article>
   `).join("");
-  renderAttendantBreakdown("#monthlyAttendantBreakdown", attendantTotals);
+  renderAttendantBreakdown("#monthlyPresentialBreakdown", presentialTotals, "Sem presencial");
+  renderAttendantBreakdown("#monthlyOnlineBreakdown", onlineTotals, "Sem online");
+  renderSimpleBreakdown("#monthlyLocationBreakdown", locationTotals, "Sem localidade");
 
   document.querySelector("#monthlyRows").innerHTML = monthRecords.length
     ? monthRecords.map((item) => {
@@ -886,7 +1042,12 @@ function renderMonthlyReport() {
           <td>${method}</td>
           <td>${dateFormatter.format(parseLocalDate(item.date))}</td>
           <td class="money-cell">${currency.format(item.amount)}</td>
-          <td><button class="table-action-button" type="button" data-edit-type="${item.recordType}" data-edit-id="${item.id}">Editar</button></td>
+          <td>
+            <div class="table-actions">
+              <button class="table-action-button" type="button" data-edit-type="${item.recordType}" data-edit-id="${item.id}">Editar</button>
+              <button class="table-action-button danger-action-button" type="button" data-delete-type="${item.recordType}" data-delete-id="${item.id}">Apagar</button>
+            </div>
+          </td>
         </tr>
       `;
     }).join("")
@@ -901,6 +1062,7 @@ function renderMonthlyReport() {
     `• Entradas: ${formatWhatsAppCurrency(incomeTotal)}`,
     `• Saídas: ${formatWhatsAppCurrency(expenseTotal)}`,
     `• Saldo Líquido: ${formatWhatsAppCurrency(balance)}`,
+    `• ${incomeVariation.label}: ${incomeVariation.text}`,
     "",
     "📈 *Comparativo com mês anterior:*",
     `• Saldo mês anterior: ${formatWhatsAppCurrency(previousBalance)}`,
@@ -912,13 +1074,23 @@ function renderMonthlyReport() {
       `• ${item.method}: Entradas ${formatWhatsAppCurrency(item.income)} | Saídas ${formatWhatsAppCurrency(item.expense)} | Saldo ${formatWhatsAppCurrency(item.balance)}`
     ),
     "",
-    "👩 *Atendentes:*",
-    ...attendantTotals.map((item) =>
-      `• ${item.name}: ${formatWhatsAppCurrency(item.total)} (${item.count} atendimentos)`
+    "🏢 *Presencial:*",
+    ...presentialTotals.map((item) =>
+      `• ${item.name}: ${formatWhatsAppCurrency(item.total)} (${item.count} registros)`
+    ),
+    "",
+    "🌐 *Online:*",
+    ...onlineTotals.map((item) =>
+      `• ${item.name}: ${formatWhatsAppCurrency(item.total)} (${item.count} registros)`
+    ),
+    "",
+    "📍 *Localidades:*",
+    ...locationTotals.map((item) =>
+      `• ${item.name}: ${formatWhatsAppCurrency(item.total)} (${item.count} registros)`
     ),
     "",
     "📌 *Resumo:*",
-    `• Total Atendimentos: ${attendanceTotal}`
+    `• Total Registros: ${attendanceTotal}`
   ].join("\n");
 }
 
@@ -942,7 +1114,10 @@ function renderWeeklyRecords(records) {
         <span>
           <strong>${dateFormatter.format(parseLocalDate(item.date))} · ${title} · ${currency.format(item.amount)}</strong>
           <span>${meta}</span>
-          <button class="table-action-button record-edit-button" type="button" data-edit-type="${item.recordType}" data-edit-id="${item.id}">Editar data e valor</button>
+          <span class="record-inline-actions">
+            <button class="table-action-button record-edit-button" type="button" data-edit-type="${item.recordType}" data-edit-id="${item.id}">Editar data e valor</button>
+            <button class="table-action-button danger-action-button record-edit-button" type="button" data-delete-type="${item.recordType}" data-delete-id="${item.id}">Apagar</button>
+          </span>
         </span>
       </label>
     `;
@@ -1174,6 +1349,58 @@ async function editMovementDateAndAmount(type, id) {
   showToast("Movimento atualizado.");
 }
 
+async function deleteMovement(type, id) {
+  const listName = type === "income" ? "income" : "expenses";
+  const item = state[listName].find((record) => record.id === id);
+  if (!item) {
+    showToast("Movimento nao encontrado.");
+    return;
+  }
+  const label = type === "income" ? "entrada" : "saida";
+  if (!window.confirm(`Apagar esta ${label} de ${currency.format(item.amount)}?`)) {
+    return;
+  }
+  state[listName] = state[listName].filter((record) => record.id !== id);
+  await saveState(listName);
+  selectedWeeklyIds = null;
+  renderDashboard();
+  showToast("Movimento apagado.");
+}
+
+function addMissingListValues(listName, values) {
+  values
+    .filter(Boolean)
+    .forEach((value) => {
+      const exists = state[listName].some((item) => item.toLowerCase() === value.toLowerCase());
+      if (!exists) {
+        state[listName].push(value);
+      }
+    });
+  state[listName].sort((a, b) => a.localeCompare(b, "pt"));
+}
+
+async function saveSelectedImportRows() {
+  const selectedRows = importPreviewRecords.filter((item) => item.selected);
+  if (!selectedRows.length) {
+    showToast("Nenhum movimento selecionado.");
+    return;
+  }
+  state.income.push(...selectedRows.map(({ selected, ...item }) => item));
+  addMissingListValues("operators", selectedRows.map((item) => item.operatorName).filter((name) => name !== "Nao identificado"));
+  addMissingListValues("paymentMethods", selectedRows.map((item) => item.paymentMethod));
+  addMissingListValues("locations", selectedRows.map((item) => item.city));
+
+  const incomeSaved = await saveState("income");
+  await saveState("operators");
+  await saveState("paymentMethods");
+  await saveState("locations");
+  importPreviewRecords = [];
+  document.querySelector("#whatsappImportText").value = "";
+  selectedWeeklyIds = null;
+  renderDashboard();
+  showToast(incomeSaved ? "Importacao guardada." : "Importacao guardada apenas neste navegador.");
+}
+
 function getAdminSaveMessage(result, label) {
   if (result === "saved") {
     return `${label}: gravado no Supabase.`;
@@ -1190,7 +1417,178 @@ function paymentNeedsPerson(value) {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/\s+/g, "");
-  return normalized === "transferencia" || normalized === "mbway";
+  return normalized === "transferencia" || normalized === "mbway" || normalized === "iban";
+}
+
+function normalizeText(value) {
+  return String(value || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function parseWhatsappDate(value) {
+  const match = value.trim().match(/^(\d{1,2})\/(\d{1,2})$/);
+  if (!match) {
+    return null;
+  }
+  const day = match[1].padStart(2, "0");
+  const month = match[2].padStart(2, "0");
+  return `${currentYear}-${month}-${day}`;
+}
+
+function stripListPrefix(value) {
+  return value
+    .replace(/^[\s\u2060]*\d+[\.\)]?\s*/u, "")
+    .replace(/^\s*[-•]\s*/u, "")
+    .trim();
+}
+
+function getOperatorFromLine(line) {
+  const found = Object.entries(operatorEmojiMap).find(([emoji]) => line.includes(emoji));
+  return found ? found[1] : "Nao identificado";
+}
+
+function getPaymentMethodFromLine(line) {
+  const normalized = normalizeText(line);
+  if (/\brevolut\b/.test(normalized)) {
+    return "Revolut";
+  }
+  if (/\biban\b|\bibam\b/.test(normalized)) {
+    return "IBAN";
+  }
+  if (/\bmbway\b|\bmb\b/.test(normalized)) {
+    return "MB WAY";
+  }
+  if (/\bdin\b|\bdinh\b|\bdinheiro\b/.test(normalized)) {
+    return "Dinheiro";
+  }
+  return "";
+}
+
+function getTransferPersonFromLine(line, method) {
+  if (!paymentNeedsPerson(method) && method !== "Revolut") {
+    return "";
+  }
+  const withoutEmoji = line.replace(/[😈😻🌳❤️♥✨🍑💙]/gu, " ");
+  const match = withoutEmoji.match(/\b(?:mbway|mb|iban|ibam|revolut)\b\s+([A-Za-zÀ-ÿ]+)/i);
+  return match ? match[1].trim() : "";
+}
+
+function stripServiceTypePrefix(description = "") {
+  const match = String(description).match(/^\[(Atendimento|Online)\]\s*(.*)$/i);
+  if (!match) {
+    return {
+      description,
+      serviceType: inferServiceTypeFromDescription(description)
+    };
+  }
+  const serviceType = normalizeText(match[1]) === "online" ? "Online" : "Atendimento";
+  return {
+    description: match[2],
+    serviceType
+  };
+}
+
+function inferServiceTypeFromDescription(description = "") {
+  return /\b(chamada|video|vídeo|foto|gp)\b/i.test(description) ? "Online" : "Atendimento";
+}
+
+function getAttendantFromLine(line, fallbackAttendant) {
+  const withoutEmoji = line.replace(/[😈😻🌳❤️♥✨🍑💙]/gu, " ");
+  const match = withoutEmoji.match(/\b(?:chamada|video|vídeo|foto|gp)\s+([A-Za-zÀ-ÿ]+)/i);
+  return normalizeAttendantName(match ? match[1].trim() : fallbackAttendant);
+}
+
+function normalizeAttendantName(name) {
+  const cleanName = String(name || "").trim();
+  const key = normalizeText(cleanName);
+  return attendantNameMap[key] || cleanName;
+}
+
+function getLocationForAttendant(attendant, fallbackCity) {
+  const key = normalizeText(attendant).trim();
+  return attendantLocationMap[key] || fallbackCity || "Nao identificado";
+}
+
+function getMainAmountFromLine(line) {
+  const mainPart = line.split(/caixinha|caixa|🎁/i)[0];
+  const match = mainPart.match(/(\d+(?:[,.]\d{1,2})?)\s*€?/);
+  return match ? Number(match[1].replace(",", ".")) : null;
+}
+
+function parseWhatsappImportText(text, attendant, city, importType = "attendance") {
+  const records = [];
+  let currentDate = null;
+
+  text.split(/\r?\n/).forEach((rawLine) => {
+    const line = rawLine.replace(/\u2060/g, "").trim();
+    if (!line) {
+      return;
+    }
+    const parsedDate = parseWhatsappDate(line);
+    if (parsedDate) {
+      currentDate = parsedDate;
+      return;
+    }
+    if (!currentDate || line.startsWith("*")) {
+      return;
+    }
+
+    const cleanedLine = stripListPrefix(line);
+    const amount = getMainAmountFromLine(cleanedLine);
+    if (!amount) {
+      return;
+    }
+
+    const paymentMethod = getPaymentMethodFromLine(cleanedLine);
+    const operatorName = getOperatorFromLine(cleanedLine);
+    const lineAttendant = importType === "call" ? getAttendantFromLine(cleanedLine, "") : attendant;
+    const serviceType = importType === "call" ? "Online" : "Atendimento";
+    const finalAttendant = importType === "call" ? lineAttendant || "Agência" : attendant || "Nao identificado";
+    const finalCity = importType === "call" ? "Online" : city;
+    records.push({
+      id: createId(),
+      selected: true,
+      clientName: finalAttendant,
+      operatorName,
+      date: currentDate,
+      paymentMethod,
+      transferPerson: getTransferPersonFromLine(cleanedLine, paymentMethod),
+      city: finalCity,
+      amount,
+      serviceType,
+      description: cleanedLine
+    });
+  });
+
+  return records;
+}
+
+function renderImportPreview() {
+  const tbody = document.querySelector("#importPreviewRows");
+  const saveButton = document.querySelector("#saveImportRows");
+  const selectedCount = importPreviewRecords.filter((item) => item.selected).length;
+  document.querySelector("#importStatus").textContent = importPreviewRecords.length
+    ? `${importPreviewRecords.length} movimentos detectados. ${selectedCount} selecionados para guardar.`
+    : "Nenhum movimento detectado.";
+  saveButton.disabled = selectedCount === 0;
+
+  tbody.innerHTML = importPreviewRecords.length
+    ? importPreviewRecords.map((item, index) => `
+      <tr>
+        <td><input class="import-checkbox" type="checkbox" data-import-index="${index}" ${item.selected ? "checked" : ""} /></td>
+        <td>${item.date}</td>
+        <td>${item.clientName || "-"}</td>
+        <td>${item.city || "-"}</td>
+        <td>${item.operatorName}</td>
+        <td>${item.paymentMethod || "-"}</td>
+        <td>${item.transferPerson || "-"}</td>
+        <td class="money-cell">${currency.format(item.amount)}</td>
+        <td>${item.description}</td>
+      </tr>
+    `).join("")
+    : `<tr><td colspan="9">Cole o texto do WhatsApp e clique em processar.</td></tr>`;
 }
 
 function updateTransferPersonField(select) {
@@ -1475,17 +1873,25 @@ document.querySelector("#logoutButton").addEventListener("click", () => {
 });
 document.querySelector("#recentRows").addEventListener("click", (event) => {
   const button = event.target.closest("[data-edit-id]");
-  if (!button) {
+  if (button) {
+    editMovementDateAndAmount(button.dataset.editType, button.dataset.editId);
     return;
   }
-  editMovementDateAndAmount(button.dataset.editType, button.dataset.editId);
+  const deleteButton = event.target.closest("[data-delete-id]");
+  if (deleteButton) {
+    deleteMovement(deleteButton.dataset.deleteType, deleteButton.dataset.deleteId);
+  }
 });
 document.querySelector("#monthlyRows").addEventListener("click", (event) => {
   const button = event.target.closest("[data-edit-id]");
-  if (!button) {
+  if (button) {
+    editMovementDateAndAmount(button.dataset.editType, button.dataset.editId);
     return;
   }
-  editMovementDateAndAmount(button.dataset.editType, button.dataset.editId);
+  const deleteButton = event.target.closest("[data-delete-id]");
+  if (deleteButton) {
+    deleteMovement(deleteButton.dataset.deleteType, deleteButton.dataset.deleteId);
+  }
 });
 document.querySelector("#categoryForm").addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -1547,6 +1953,37 @@ document.querySelector("#paymentMethodList").addEventListener("click", async (ev
   await removeItem("paymentMethods", method);
   showToast("Metodo de pagamento removido.");
 });
+document.querySelector("#processWhatsappImport").addEventListener("click", () => {
+  const importType = document.querySelector("#importType").value;
+  const attendant = document.querySelector("#importAttendant").value.trim();
+  const city = document.querySelector("#importCity").value;
+  const text = document.querySelector("#whatsappImportText").value;
+  if (importType === "attendance" && !attendant) {
+    showToast("Informe o nome da garota.");
+    return;
+  }
+  if (importType === "attendance" && !city) {
+    showToast("Selecione a localidade.");
+    return;
+  }
+  importPreviewRecords = parseWhatsappImportText(text, attendant, city, importType);
+  renderImportPreview();
+  showToast(importPreviewRecords.length ? "Texto processado." : "Nenhum movimento encontrado.");
+});
+document.querySelector("#clearWhatsappImport").addEventListener("click", () => {
+  importPreviewRecords = [];
+  document.querySelector("#whatsappImportText").value = "";
+  renderImportPreview();
+});
+document.querySelector("#importPreviewRows").addEventListener("change", (event) => {
+  const index = Number(event.target.dataset.importIndex);
+  if (!Number.isInteger(index) || !importPreviewRecords[index]) {
+    return;
+  }
+  importPreviewRecords[index].selected = event.target.checked;
+  renderImportPreview();
+});
+document.querySelector("#saveImportRows").addEventListener("click", saveSelectedImportRows);
 document.querySelector("#themeOptions").addEventListener("click", (event) => {
   const button = event.target.closest("[data-theme]");
   if (!button) {
@@ -1606,11 +2043,16 @@ document.querySelector("#weeklyRecords").addEventListener("change", (event) => {
 });
 document.querySelector("#weeklyRecords").addEventListener("click", (event) => {
   const button = event.target.closest("[data-edit-id]");
-  if (!button) {
+  if (button) {
+    event.preventDefault();
+    editMovementDateAndAmount(button.dataset.editType, button.dataset.editId);
     return;
   }
-  event.preventDefault();
-  editMovementDateAndAmount(button.dataset.editType, button.dataset.editId);
+  const deleteButton = event.target.closest("[data-delete-id]");
+  if (deleteButton) {
+    event.preventDefault();
+    deleteMovement(deleteButton.dataset.deleteType, deleteButton.dataset.deleteId);
+  }
 });
 document.querySelector("#copyReport").addEventListener("click", async () => {
   const report = document.querySelector("#weeklyReport");

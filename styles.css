@@ -451,7 +451,7 @@ th {
 
 .report-summary {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 14px;
 }
@@ -467,6 +467,18 @@ th {
   display: block;
   font-size: 0.82rem;
   margin-bottom: 6px;
+}
+
+.variation-card.positive strong {
+  color: var(--green);
+}
+
+.variation-card.negative strong {
+  color: var(--red);
+}
+
+.variation-card.neutral strong {
+  color: var(--muted);
 }
 
 .weekly-layout {
@@ -597,6 +609,41 @@ th {
   gap: 16px;
 }
 
+.import-panel {
+  max-width: 1180px;
+}
+
+.import-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.import-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  grid-column: 1 / -1;
+}
+
+.import-status {
+  color: var(--muted);
+  font-weight: 800;
+  margin: 16px 0 10px;
+}
+
+.import-preview-wrap {
+  max-height: 520px;
+  overflow: auto;
+}
+
+.import-checkbox {
+  accent-color: var(--green);
+  min-height: 18px;
+  width: 18px;
+}
+
 .control-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -685,6 +732,18 @@ th {
   font-weight: 800;
   min-height: 32px;
   padding: 0 10px;
+}
+
+.table-actions,
+.record-inline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.danger-action-button {
+  background: #f4e4e1;
+  color: var(--red);
 }
 
 .record-edit-button {
