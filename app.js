@@ -35,10 +35,10 @@ function createId() {
 const seedData = {
   income: [],
   expenses: [],
-  categories: defaultCategories,
-  locations: defaultLocations,
-  operators: defaultOperators,
-  paymentMethods: defaultPaymentMethods,
+  categories: [],
+  locations: [],
+  operators: [],
+  paymentMethods: [],
   theme: defaultTheme,
   auth: defaultAuth
 };
@@ -56,9 +56,9 @@ function loadState() {
   return normalizeState(parsed);
 }
 
-async function saveState() {
+async function saveState(scope = "all") {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  return saveRemoteState();
+  return saveRemoteState(scope);
 }
 
 async function loadRemoteState() {
@@ -84,9 +84,9 @@ async function loadRemoteState() {
   }
 }
 
-async function saveRemoteState() {
+async function saveRemoteState(scope = "all") {
   if (isSupabaseConfigured()) {
-    return saveSupabaseState();
+    return saveSupabaseState(scope);
   }
   try {
     await fetch("/api/state", {
@@ -126,20 +126,8 @@ async function loadSupabaseState() {
   const normalizedState = await loadNormalizedSupabaseState();
   if (normalizedState) {
     const nextState = normalizeState(normalizedState);
-    let shouldSavePreservedLists = false;
-    if (!nextState.operators.length && previousState.operators.length) {
-      nextState.operators = previousState.operators;
-      shouldSavePreservedLists = true;
-    }
-    if (!nextState.paymentMethods.length && previousState.paymentMethods.length) {
-      nextState.paymentMethods = previousState.paymentMethods;
-      shouldSavePreservedLists = true;
-    }
     state = nextState;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    if (shouldSavePreservedLists) {
-      await saveRemoteState();
-    }
     showToast("Dados carregados das tabelas Supabase.");
     return state;
   }
@@ -149,8 +137,8 @@ async function loadSupabaseState() {
   return state;
 }
 
-async function saveSupabaseState() {
-  if (await saveNormalizedSupabaseState()) {
+async function saveSupabaseState(scope = "all") {
+  if (await saveNormalizedSupabaseState(scope)) {
     return true;
   }
   showToast("Nao foi possivel salvar nas tabelas do Supabase.");
@@ -289,14 +277,18 @@ async function replaceTable(tableName, rows) {
   });
 }
 
-async function saveNormalizedSupabaseState() {
+async function saveTableSafely(name, rows) {
   try {
-    await replaceTable("entradas", state.income.map(incomeToRow));
-    await replaceTable("saidas", state.expenses.map(expenseToRow));
-    await replaceTable("categorias", state.categories.map((name) => ({ id: toSlugId("cat", name), name })));
-    await replaceTable("localidades", state.locations.map((name) => ({ id: toSlugId("loc", name), name })));
-    await replaceTable("operacionais", state.operators.map((name) => ({ id: toSlugId("op", name), name })));
-    await replaceTable("metodos_pagamento", state.paymentMethods.map((name) => ({ id: toSlugId("pay", name), name })));
+    await replaceTable(name, rows);
+    return true;
+  } catch (error) {
+    console.error(`Falha ao salvar tabela ${name} no Supabase.`, error);
+    return false;
+  }
+}
+
+async function saveSettingsSafely() {
+  try {
     await supabaseRequest("configuracoes", {
       method: "POST",
       headers: {
@@ -310,17 +302,36 @@ async function saveNormalizedSupabaseState() {
       })
     });
     return true;
-  } catch {
-    console.error("Falha ao salvar estado normalizado no Supabase.");
+  } catch (error) {
+    console.error("Falha ao salvar configuracoes no Supabase.", error);
     return false;
   }
 }
 
+async function saveNormalizedSupabaseState(scope = "all") {
+  const tasks = {
+    income: () => saveTableSafely("entradas", state.income.map(incomeToRow)),
+    expenses: () => saveTableSafely("saidas", state.expenses.map(expenseToRow)),
+    categories: () => saveTableSafely("categorias", state.categories.map((name) => ({ id: toSlugId("cat", name), name }))),
+    locations: () => saveTableSafely("localidades", state.locations.map((name) => ({ id: toSlugId("loc", name), name }))),
+    operators: () => saveTableSafely("operacionais", state.operators.map((name) => ({ id: toSlugId("op", name), name }))),
+    paymentMethods: () => saveTableSafely("metodos_pagamento", state.paymentMethods.map((name) => ({ id: toSlugId("pay", name), name }))),
+    settings: () => saveSettingsSafely()
+  };
+
+  if (scope !== "all" && tasks[scope]) {
+    return tasks[scope]();
+  }
+
+  const results = await Promise.all(Object.values(tasks).map((task) => task()));
+  return results.every(Boolean);
+}
+
 function normalizeState(data) {
-  const categories = new Set(Array.isArray(data.categories) ? data.categories : defaultCategories);
-  const locations = new Set(Array.isArray(data.locations) ? data.locations : defaultLocations);
-  const operators = new Set(Array.isArray(data.operators) ? data.operators : defaultOperators);
-  const paymentMethods = new Set(Array.isArray(data.paymentMethods) ? data.paymentMethods : defaultPaymentMethods);
+  const categories = new Set(Array.isArray(data.categories) ? data.categories : []);
+  const locations = new Set(Array.isArray(data.locations) ? data.locations : []);
+  const operators = new Set(Array.isArray(data.operators) ? data.operators : []);
+  const paymentMethods = new Set(Array.isArray(data.paymentMethods) ? data.paymentMethods : []);
   return {
     income: data.income || [],
     expenses: data.expenses || [],
@@ -1117,14 +1128,14 @@ async function addUniqueItem(listName, value) {
   }
   state[listName].push(cleanValue);
   state[listName].sort((a, b) => a.localeCompare(b, "pt"));
-  const saved = await saveState();
+  const saved = await saveState(listName);
   renderDashboard();
   return saved ? "saved" : "local";
 }
 
 async function removeItem(listName, value) {
   state[listName] = state[listName].filter((item) => item !== value);
-  await saveState();
+  await saveState(listName);
   renderDashboard();
 }
 
