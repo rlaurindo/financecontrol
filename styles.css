@@ -449,6 +449,12 @@ th {
   justify-content: flex-end;
 }
 
+.record-actions .secondary-button {
+  min-height: 40px;
+  padding: 0 14px;
+  width: auto;
+}
+
 .report-summary {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -625,6 +631,12 @@ th {
   flex-wrap: wrap;
   gap: 10px;
   grid-column: 1 / -1;
+}
+
+.import-actions .secondary-button {
+  min-height: 40px;
+  padding: 0 14px;
+  width: auto;
 }
 
 .import-status {
