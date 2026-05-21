@@ -1911,7 +1911,7 @@ function handleExpenseSubmit(event) {
     ...data,
     paymentMethod: "Nao informado",
     transferPerson: "",
-    city: "Geral",
+    city: data.city || "Geral",
     amount: Number(data.amount)
   });
   saveState();

@@ -527,6 +527,12 @@
                 Data do pagamento
                 <input name="date" type="date" required />
               </label>
+              <label>
+                Localidade associada
+                <select name="city" class="location-select">
+                  <option value="">Sem localidade</option>
+                </select>
+              </label>
               <button type="submit">Guardar saida</button>
             </form>
           </section>
@@ -535,7 +541,7 @@
     </div>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <script src="supabase-config.js?v=20260521-despesa-simples"></script>
-    <script src="app.js?v=20260521-despesa-simples"></script>
+    <script src="supabase-config.js?v=20260521-despesa-localidade-opcional"></script>
+    <script src="app.js?v=20260521-despesa-localidade-opcional"></script>
   </body>
 </html>
