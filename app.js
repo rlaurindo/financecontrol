@@ -492,21 +492,23 @@ function applyTheme(theme) {
 }
 
 function renderDynamicSelects() {
-  const paymentMethodOptions = ['<option value="">Selecionar</option>', ...state.paymentMethods.map((item) => `<option>${item}</option>`)].join("");
+  const paymentMethods = state.paymentMethods.length ? state.paymentMethods : defaultPaymentMethods;
+  const locations = state.locations.length ? state.locations : defaultLocations;
+  const paymentMethodOptions = ['<option value="">Selecionar</option>', ...paymentMethods.map((item) => `<option>${item}</option>`)].join("");
   document.querySelectorAll(".payment-method").forEach((select) => {
     const currentValue = select.value;
     select.innerHTML = paymentMethodOptions;
-    if (state.paymentMethods.includes(currentValue)) {
+    if (paymentMethods.includes(currentValue)) {
       select.value = currentValue;
     }
     updateTransferPersonField(select);
   });
 
-  const locationOptions = ['<option value="">Selecionar</option>', ...state.locations.map((item) => `<option>${item}</option>`)].join("");
+  const locationOptions = ['<option value="">Selecionar</option>', ...locations.map((item) => `<option>${item}</option>`)].join("");
   document.querySelectorAll(".location-select").forEach((select) => {
     const currentValue = select.value;
     select.innerHTML = locationOptions;
-    if (state.locations.includes(currentValue)) {
+    if (locations.includes(currentValue)) {
       select.value = currentValue;
     }
   });
@@ -841,21 +843,21 @@ function renderWeeklyReport() {
     "",
     "🏢 *Presencial:*",
     ...presentialTotals.map((item) =>
-      `• ${item.name}: ${formatWhatsAppCurrency(item.total)} (${item.count} registros)`
+      `• ${item.name}: ${formatWhatsAppCurrency(item.total)} (${item.count} atendimentos)`
     ),
     "",
     "🌐 *Online:*",
     ...onlineTotals.map((item) =>
-      `• ${item.name}: ${formatWhatsAppCurrency(item.total)} (${item.count} registros)`
+      `• ${item.name}: ${formatWhatsAppCurrency(item.total)} (${item.count} atendimentos)`
     ),
     "",
     "📍 *Localidades:*",
     ...locationTotals.map((item) =>
-      `• ${item.name}: ${formatWhatsAppCurrency(item.total)} (${item.count} registros)`
+      `• ${item.name}: ${formatWhatsAppCurrency(item.total)} (${item.count} atendimentos)`
     ),
     "",
     "📈 *Resumo:*",
-    `• Total Registros: ${attendanceTotal}`
+    `• Total Atendimentos: ${attendanceTotal}`
   ].join("\n");
 }
 
@@ -950,7 +952,7 @@ function renderAttendantBreakdown(selector, attendantTotals, emptyTitle = "Sem r
       <article class="payment-card">
         <strong>${item.name}</strong>
         <span>Valor: ${currency.format(item.total)}</span>
-        <span>Registros: ${item.count}</span>
+        <span>Atendimentos: ${item.count}</span>
       </article>
     `).join("")
     : `<article class="payment-card"><strong>${emptyTitle}</strong><span>Nenhuma entrada no periodo.</span></article>`;
@@ -966,7 +968,7 @@ function renderSimpleBreakdown(selector, items, emptyTitle = "Sem registros") {
       <article class="payment-card">
         <strong>${item.name}</strong>
         <span>Valor: ${currency.format(item.total)}</span>
-        <span>Registros: ${item.count}</span>
+        <span>Atendimentos: ${item.count}</span>
       </article>
     `).join("")
     : `<article class="payment-card"><strong>${emptyTitle}</strong><span>Nenhuma entrada no periodo.</span></article>`;
@@ -1078,21 +1080,21 @@ function renderMonthlyReport() {
     "",
     "🏢 *Presencial:*",
     ...presentialTotals.map((item) =>
-      `• ${item.name}: ${formatWhatsAppCurrency(item.total)} (${item.count} registros)`
+      `• ${item.name}: ${formatWhatsAppCurrency(item.total)} (${item.count} atendimentos)`
     ),
     "",
     "🌐 *Online:*",
     ...onlineTotals.map((item) =>
-      `• ${item.name}: ${formatWhatsAppCurrency(item.total)} (${item.count} registros)`
+      `• ${item.name}: ${formatWhatsAppCurrency(item.total)} (${item.count} atendimentos)`
     ),
     "",
     "📍 *Localidades:*",
     ...locationTotals.map((item) =>
-      `• ${item.name}: ${formatWhatsAppCurrency(item.total)} (${item.count} registros)`
+      `• ${item.name}: ${formatWhatsAppCurrency(item.total)} (${item.count} atendimentos)`
     ),
     "",
     "📌 *Resumo:*",
-    `• Total Registros: ${attendanceTotal}`
+    `• Total Atendimentos: ${attendanceTotal}`
   ].join("\n");
 }
 
