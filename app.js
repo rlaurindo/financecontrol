@@ -1906,12 +1906,12 @@ function handleExpenseSubmit(event) {
   event.preventDefault();
   const form = event.currentTarget;
   const data = formToObject(form);
-  if (!paymentNeedsPerson(data.paymentMethod)) {
-    data.transferPerson = "";
-  }
   state.expenses.push({
     id: createId(),
     ...data,
+    paymentMethod: "Nao informado",
+    transferPerson: "",
+    city: "Geral",
     amount: Number(data.amount)
   });
   saveState();
