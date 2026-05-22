@@ -220,6 +220,14 @@ main {
   margin-bottom: 28px;
 }
 
+.topbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.refresh-button,
 .logout-button {
   white-space: nowrap;
 }
@@ -405,6 +413,11 @@ th {
   text-align: right;
 }
 
+th:last-child,
+td:last-child {
+  width: 150px;
+}
+
 .type-pill {
   border-radius: 999px;
   color: #fff;
@@ -423,7 +436,9 @@ th {
 }
 
 .report-panel,
-.form-panel {
+#income .form-panel,
+#control .form-panel,
+#import .form-panel {
   max-width: 980px;
 }
 
@@ -749,16 +764,20 @@ th {
   border-radius: 8px;
   color: var(--green-dark);
   cursor: pointer;
+  font-size: 0.8rem;
   font-weight: 800;
-  min-height: 32px;
-  padding: 0 10px;
+  line-height: 1;
+  min-height: 30px;
+  padding: 0 8px;
+  white-space: nowrap;
 }
 
 .table-actions,
 .record-inline-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 5px;
+  justify-content: flex-end;
 }
 
 .danger-action-button {
@@ -774,6 +793,10 @@ th {
 .record-edit-button {
   margin-top: 8px;
   width: fit-content;
+}
+
+.record-inline-actions {
+  justify-content: flex-start;
 }
 
 .hidden {

@@ -4,15 +4,15 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Controle Integrado de Maio</title>
-    <link rel="stylesheet" href="styles.css?v=20260521-atendimentos" />
+    <link rel="stylesheet" href="styles.css?v=20260521-saidas-alinhadas" />
   </head>
   <body>
     <section class="auth-screen" id="authScreen">
       <form class="auth-card" id="loginForm">
         <div class="brand auth-brand">
-          <img class="brand-logo" src="./assets/logo.png" alt="RLL Automations" />
+          <img class="brand-logo" src="./assets/logo.png" alt="RLL Solutions" />
           <div>
-            <strong>RLL Automations</strong>
+            <strong>RLL Solutions</strong>
             <span>Acesso seguro</span>
           </div>
         </div>
@@ -31,9 +31,9 @@
     <div class="app-shell locked" id="appShell">
       <aside class="sidebar">
         <div class="brand">
-          <img class="brand-logo" src="./assets/logo.png" alt="RLL Automations" />
+          <img class="brand-logo" src="./assets/logo.png" alt="RLL Solutions" />
           <div>
-            <strong>RLL Automations</strong>
+            <strong>RLL Solutions</strong>
             <span>Maio</span>
           </div>
         </div>
@@ -57,7 +57,10 @@
             <span>Data</span>
             <strong id="todayLabel"></strong>
           </div>
-          <button class="secondary-button logout-button" id="logoutButton" type="button">Sair</button>
+          <div class="topbar-actions">
+            <button class="secondary-button refresh-button" id="refreshAppButton" type="button">Atualizar</button>
+            <button class="secondary-button logout-button" id="logoutButton" type="button">Sair</button>
+          </div>
         </section>
 
         <section class="tab-panel active" id="dashboard">
@@ -241,6 +244,15 @@
               </div>
               <div class="breakdown-grid" id="locationBreakdown"></div>
             </section>
+            <section class="payment-breakdown" aria-label="Valores por categoria">
+              <div class="panel-heading compact-heading">
+                <div>
+                  <p class="eyebrow">Categorias</p>
+                  <h2>Despesas por categoria</h2>
+                </div>
+              </div>
+              <div class="breakdown-grid" id="categoryBreakdown"></div>
+            </section>
             <div class="weekly-layout">
               <section class="weekly-records" aria-label="Registros da semana">
                 <div class="panel-heading compact-heading">
@@ -328,6 +340,15 @@
                   </div>
                 </div>
                 <div class="breakdown-grid" id="monthlyLocationBreakdown"></div>
+              </section>
+              <section class="payment-breakdown" aria-label="Valores mensais por categoria">
+                <div class="panel-heading compact-heading">
+                  <div>
+                    <p class="eyebrow">Categorias</p>
+                    <h2>Mensal despesas por categoria</h2>
+                  </div>
+                </div>
+                <div class="breakdown-grid" id="monthlyCategoryBreakdown"></div>
               </section>
               <section class="payment-breakdown" aria-label="Movimentos do mes">
                 <div class="panel-heading compact-heading">
@@ -536,12 +557,35 @@
               <button type="submit">Guardar saida</button>
             </form>
           </section>
+          <section class="panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Despesas recentes</p>
+                <h2>Ultimos 10 registros adicionados</h2>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Descricao</th>
+                    <th>Categoria</th>
+                    <th>Localidade</th>
+                    <th>Data</th>
+                    <th class="money-cell">Valor</th>
+                    <th>Acao</th>
+                  </tr>
+                </thead>
+                <tbody id="expenseRecentRows"></tbody>
+              </table>
+            </div>
+          </section>
         </section>
       </main>
     </div>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <script src="supabase-config.js?v=20260521-despesa-localidade-opcional"></script>
-    <script src="app.js?v=20260521-despesa-localidade-opcional"></script>
+    <script src="supabase-config.js?v=20260521-atualizar-global"></script>
+    <script src="app.js?v=20260521-atualizar-global"></script>
   </body>
 </html>

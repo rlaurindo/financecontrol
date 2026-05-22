@@ -470,6 +470,7 @@ function renderDashboard() {
 
   renderCities(mayIncome, mayExpenses);
   renderRecentRows();
+  renderExpenseRecentRows();
   renderCashFlowChart();
   renderWeeklyReport();
   renderMonthlyReport();
@@ -637,6 +638,39 @@ function renderRecentRows() {
     .join("");
 
   document.querySelector("#recentRows").innerHTML = rows;
+}
+
+function renderExpenseRecentRows() {
+  const container = document.querySelector("#expenseRecentRows");
+  if (!container) {
+    return;
+  }
+
+  const rows = state.expenses
+    .map((item, index) => ({ ...item, listIndex: index }))
+    .sort((a, b) => {
+      const dateDiff = parseLocalDate(b.date) - parseLocalDate(a.date);
+      return dateDiff || b.listIndex - a.listIndex;
+    })
+    .slice(0, 10)
+    .map((item) => `
+      <tr>
+        <td>${item.description}</td>
+        <td>${item.category || "-"}</td>
+        <td>${item.city || "Geral"}</td>
+        <td>${dateFormatter.format(parseLocalDate(item.date))}</td>
+        <td class="money-cell">${currency.format(item.amount)}</td>
+        <td>
+          <div class="table-actions">
+            <button class="table-action-button" type="button" data-edit-type="expense" data-edit-id="${item.id}">Editar</button>
+            <button class="table-action-button danger-action-button" type="button" data-delete-type="expense" data-delete-id="${item.id}">Apagar</button>
+          </div>
+        </td>
+      </tr>
+    `)
+    .join("");
+
+  container.innerHTML = rows || `<tr><td colspan="6">Nenhuma despesa registrada.</td></tr>`;
 }
 
 function renderCashFlowChart() {
@@ -816,10 +850,12 @@ function renderWeeklyReport() {
   const presentialTotals = getAttendantTotals(presentialIncome);
   const onlineTotals = getAttendantTotals(onlineIncome);
   const locationTotals = getLocationTotals(weekIncome);
+  const categoryTotals = getCategoryTotals(weekExpenses);
   renderPaymentBreakdown(paymentTotals);
   renderAttendantBreakdown("#presentialBreakdown", presentialTotals, "Sem presencial");
   renderAttendantBreakdown("#onlineBreakdown", onlineTotals, "Sem online");
   renderSimpleBreakdown("#locationBreakdown", locationTotals, "Sem localidade");
+  renderCategoryBreakdown("#categoryBreakdown", categoryTotals, "Sem categoria");
   renderWeeklyChart(dailyTotals);
 
   document.querySelector("#weeklyReport").value = [
@@ -854,6 +890,11 @@ function renderWeeklyReport() {
     "📍 *Localidades:*",
     ...locationTotals.map((item) =>
       `• ${item.name}: ${formatWhatsAppCurrency(item.total)} (${item.count} atendimentos)`
+    ),
+    "",
+    "🧾 *Categorias de Despesa:*",
+    ...categoryTotals.map((item) =>
+      `• ${item.name}: ${formatWhatsAppCurrency(item.total)} (${item.count} despesas)`
     ),
     "",
     "📈 *Resumo:*",
@@ -931,6 +972,20 @@ function getLocationTotals(incomes) {
   return [...totals.values()].sort((a, b) => b.total - a.total);
 }
 
+function getCategoryTotals(expenses) {
+  const totals = new Map();
+  expenses.forEach((item) => {
+    const name = item.category || "Sem categoria";
+    if (!totals.has(name)) {
+      totals.set(name, { name, total: 0, count: 0 });
+    }
+    const target = totals.get(name);
+    target.total += Number(item.amount || 0);
+    target.count += 1;
+  });
+  return [...totals.values()].sort((a, b) => b.total - a.total);
+}
+
 function getServiceTypeTotals(incomes) {
   const totals = new Map([
     ["Atendimento", { name: "Atendimento por garota", total: 0, count: 0 }],
@@ -974,6 +1029,22 @@ function renderSimpleBreakdown(selector, items, emptyTitle = "Sem registros") {
     : `<article class="payment-card"><strong>${emptyTitle}</strong><span>Nenhuma entrada no periodo.</span></article>`;
 }
 
+function renderCategoryBreakdown(selector, items, emptyTitle = "Sem categoria") {
+  const container = document.querySelector(selector);
+  if (!container) {
+    return;
+  }
+  container.innerHTML = items.length
+    ? items.map((item) => `
+      <article class="payment-card">
+        <strong>${item.name}</strong>
+        <span>Valor: ${currency.format(item.total)}</span>
+        <span>Despesas: ${item.count}</span>
+      </article>
+    `).join("")
+    : `<article class="payment-card"><strong>${emptyTitle}</strong><span>Nenhuma despesa no periodo.</span></article>`;
+}
+
 function renderMonthlyReport() {
   const { start, end, year, month } = getMonthRange();
   const previous = getPreviousMonthRange(year, month);
@@ -995,6 +1066,7 @@ function renderMonthlyReport() {
   const presentialTotals = getAttendantTotals(presentialIncome);
   const onlineTotals = getAttendantTotals(onlineIncome);
   const locationTotals = getLocationTotals(monthIncome);
+  const categoryTotals = getCategoryTotals(monthExpenses);
   const monthRecords = [
     ...monthIncome.map((item) => ({ ...item, type: "Entrada", amountType: "income", recordType: "income", detail: item.clientName })),
     ...monthExpenses.map((item) => ({ ...item, type: "Saida", amountType: "expense", recordType: "expense", detail: item.category }))
@@ -1033,6 +1105,7 @@ function renderMonthlyReport() {
   renderAttendantBreakdown("#monthlyPresentialBreakdown", presentialTotals, "Sem presencial");
   renderAttendantBreakdown("#monthlyOnlineBreakdown", onlineTotals, "Sem online");
   renderSimpleBreakdown("#monthlyLocationBreakdown", locationTotals, "Sem localidade");
+  renderCategoryBreakdown("#monthlyCategoryBreakdown", categoryTotals, "Sem categoria");
 
   document.querySelector("#monthlyRows").innerHTML = monthRecords.length
     ? monthRecords.map((item) => {
@@ -1091,6 +1164,11 @@ function renderMonthlyReport() {
     "📍 *Localidades:*",
     ...locationTotals.map((item) =>
       `• ${item.name}: ${formatWhatsAppCurrency(item.total)} (${item.count} atendimentos)`
+    ),
+    "",
+    "🧾 *Categorias de Despesa:*",
+    ...categoryTotals.map((item) =>
+      `• ${item.name}: ${formatWhatsAppCurrency(item.total)} (${item.count} despesas)`
     ),
     "",
     "📌 *Resumo:*",
@@ -1237,6 +1315,21 @@ function setAuthenticated(session) {
     sessionStorage.removeItem(AUTH_SESSION_KEY);
     document.body.classList.remove("authenticated");
   }
+}
+
+async function refreshApplication() {
+  const button = document.querySelector("#refreshAppButton");
+  if (button) {
+    button.disabled = true;
+    button.textContent = "Atualizando...";
+  }
+  await loadRemoteState();
+  renderDashboard();
+  if (button) {
+    button.disabled = false;
+    button.textContent = "Atualizar";
+  }
+  showToast("Valores atualizados.");
 }
 
 async function verifyAuthSession() {
@@ -1955,6 +2048,7 @@ document.querySelector("#logoutButton").addEventListener("click", () => {
   setAuthenticated(null);
   showToast("Sessao encerrada.");
 });
+document.querySelector("#refreshAppButton").addEventListener("click", refreshApplication);
 document.querySelector("#recentRows").addEventListener("click", (event) => {
   const button = event.target.closest("[data-edit-id]");
   if (button) {
@@ -1967,6 +2061,17 @@ document.querySelector("#recentRows").addEventListener("click", (event) => {
   }
 });
 document.querySelector("#monthlyRows").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-edit-id]");
+  if (button) {
+    editMovementDateAndAmount(button.dataset.editType, button.dataset.editId);
+    return;
+  }
+  const deleteButton = event.target.closest("[data-delete-id]");
+  if (deleteButton) {
+    deleteMovement(deleteButton.dataset.deleteType, deleteButton.dataset.deleteId);
+  }
+});
+document.querySelector("#expenseRecentRows").addEventListener("click", (event) => {
   const button = event.target.closest("[data-edit-id]");
   if (button) {
     editMovementDateAndAmount(button.dataset.editType, button.dataset.editId);
