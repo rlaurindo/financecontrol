@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Controle Integrado de Maio</title>
-    <link rel="stylesheet" href="styles.css?v=20260521-saidas-alinhadas" />
+    <link rel="stylesheet" href="styles.css?v=20260522-domingo-sabado" />
   </head>
   <body>
     <section class="auth-screen" id="authScreen">
@@ -191,7 +191,7 @@
           <section class="panel report-panel">
             <div class="panel-heading">
               <div>
-                <p class="eyebrow">Acompanhamento para Cliente</p>
+                <p class="eyebrow">Acompanhamento de Atendimentos</p>
                 <h2>Relatorio semanal</h2>
               </div>
               <div class="report-actions">
@@ -234,6 +234,24 @@
                 </div>
               </div>
               <div class="breakdown-grid" id="onlineBreakdown"></div>
+            </section>
+            <section class="payment-breakdown" aria-label="Multas">
+              <div class="panel-heading compact-heading">
+                <div>
+                  <p class="eyebrow">Multas</p>
+                  <h2>Multas por garota</h2>
+                </div>
+              </div>
+              <div class="breakdown-grid" id="fineBreakdown"></div>
+            </section>
+            <section class="payment-breakdown" aria-label="Registros por operacional">
+              <div class="panel-heading compact-heading">
+                <div>
+                  <p class="eyebrow">Operacionais</p>
+                  <h2>Registros por operacional</h2>
+                </div>
+              </div>
+              <div class="breakdown-grid" id="operatorCountBreakdown"></div>
             </section>
             <section class="payment-breakdown" aria-label="Valores por localidade">
               <div class="panel-heading compact-heading">
@@ -287,7 +305,10 @@
                   <p class="eyebrow">Acumulado mensal</p>
                   <h2>Relatorio mensal</h2>
                 </div>
-                <button class="secondary-button" id="copyMonthlyReport" type="button">Copiar Mensal</button>
+                <div class="report-actions">
+                  <button class="secondary-button" id="copyMonthlyReport" type="button">Copiar Mensal</button>
+                  <button class="secondary-button" id="exportMonthlyCsv" type="button">Exportar CSV</button>
+                </div>
               </div>
               <div class="week-controls">
                 <label>
@@ -329,8 +350,26 @@
                     <p class="eyebrow">Online</p>
                     <h2>Mensal chamada, video e foto</h2>
                   </div>
+              </div>
+              <div class="breakdown-grid" id="monthlyOnlineBreakdown"></div>
+            </section>
+              <section class="payment-breakdown" aria-label="Multas mensais">
+                <div class="panel-heading compact-heading">
+                  <div>
+                    <p class="eyebrow">Multas</p>
+                    <h2>Mensal multas por garota</h2>
+                  </div>
                 </div>
-                <div class="breakdown-grid" id="monthlyOnlineBreakdown"></div>
+                <div class="breakdown-grid" id="monthlyFineBreakdown"></div>
+              </section>
+              <section class="payment-breakdown" aria-label="Registros mensais por operacional">
+                <div class="panel-heading compact-heading">
+                  <div>
+                    <p class="eyebrow">Operacionais</p>
+                    <h2>Mensal registros por operacional</h2>
+                  </div>
+                </div>
+                <div class="breakdown-grid" id="monthlyOperatorCountBreakdown"></div>
               </section>
               <section class="payment-breakdown" aria-label="Valores mensais por localidade">
                 <div class="panel-heading compact-heading">
@@ -585,7 +624,7 @@
     </div>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <script src="supabase-config.js?v=20260521-atualizar-global"></script>
-    <script src="app.js?v=20260521-atualizar-global"></script>
+    <script src="supabase-config.js?v=20260524-operacionais-registros"></script>
+    <script src="app.js?v=20260524-operacionais-registros"></script>
   </body>
 </html>

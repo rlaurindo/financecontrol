@@ -431,8 +431,8 @@ function formatWhatsAppCurrency(value) {
 
 function startOfWeek(date) {
   const local = new Date(date);
-  const day = local.getDay() || 7;
-  local.setDate(local.getDate() - day + 1);
+  const day = local.getDay();
+  local.setDate(local.getDate() - day);
   local.setHours(0, 0, 0, 0);
   return local;
 }
@@ -849,17 +849,21 @@ function renderWeeklyReport() {
   const onlineIncome = getIncomesByServiceType(weekIncome, "Online");
   const presentialTotals = getAttendantTotals(presentialIncome);
   const onlineTotals = getAttendantTotals(onlineIncome);
+  const fineTotals = getFineTotals(weekIncome);
+  const operatorCountTotals = getOperatorCountTotals(weekIncome);
   const locationTotals = getLocationTotals(weekIncome);
   const categoryTotals = getCategoryTotals(weekExpenses);
   renderPaymentBreakdown(paymentTotals);
   renderAttendantBreakdown("#presentialBreakdown", presentialTotals, "Sem presencial");
   renderAttendantBreakdown("#onlineBreakdown", onlineTotals, "Sem online");
+  renderFineBreakdown("#fineBreakdown", fineTotals, "Sem multas");
+  renderOperatorCountBreakdown("#operatorCountBreakdown", operatorCountTotals, "Sem operacionais");
   renderSimpleBreakdown("#locationBreakdown", locationTotals, "Sem localidade");
   renderCategoryBreakdown("#categoryBreakdown", categoryTotals, "Sem categoria");
   renderWeeklyChart(dailyTotals);
 
   document.querySelector("#weeklyReport").value = [
-    "Acompanhamento para Cliente",
+    "Acompanhamento de Atendimentos",
     "",
     `📊 *RELATÓRIO SEMANAL - ${formatShortDate(start)} - ${formatShortDate(end)}*`,
     "",
@@ -885,6 +889,16 @@ function renderWeeklyReport() {
     "🌐 *Online:*",
     ...onlineTotals.map((item) =>
       `• ${item.name}: ${formatWhatsAppCurrency(item.total)} (${item.count} atendimentos)`
+    ),
+    "",
+    "🏢 *Multas:*",
+    ...fineTotals.map((item) =>
+      `• ${item.name}: ${formatWhatsAppCurrency(item.total)} (${item.reason})`
+    ),
+    "",
+    "👥 *Operacionais:*",
+    ...operatorCountTotals.map((item) =>
+      `• ${item.name}: ${item.count} registros`
     ),
     "",
     "📍 *Localidades:*",
@@ -986,6 +1000,58 @@ function getCategoryTotals(expenses) {
   return [...totals.values()].sort((a, b) => b.total - a.total);
 }
 
+function isFineIncome(item) {
+  return /\bmulta\b/i.test(normalizeText(item.description));
+}
+
+function getFineTarget(item) {
+  const prefixMatch = String(item.description || "").match(/^\[Multa:\s*([^\]]+)\]/i);
+  if (prefixMatch) {
+    return normalizeAttendantName(prefixMatch[1].trim()) || "Agência";
+  }
+  const clientName = normalizeAttendantName(item.clientName);
+  if (normalizeText(clientName) !== "agencia") {
+    return clientName || "Agência";
+  }
+  return getFineTargetFromLine(item.description, "") || "Agência";
+}
+
+function getFineReason(item) {
+  const normalizedDescription = normalizeText(item.description);
+  if (normalizedDescription.includes("perdeu cliente")) {
+    return "perdeu cliente";
+  }
+  return "multa";
+}
+
+function getFineTotals(incomes) {
+  const totals = new Map();
+  incomes.filter(isFineIncome).forEach((item) => {
+    const name = getFineTarget(item);
+    const reason = getFineReason(item);
+    const key = `${name}|${reason}`;
+    if (!totals.has(key)) {
+      totals.set(key, { name, reason, total: 0, count: 0 });
+    }
+    const target = totals.get(key);
+    target.total += Number(item.amount || 0);
+    target.count += 1;
+  });
+  return [...totals.values()].sort((a, b) => b.total - a.total);
+}
+
+function getOperatorCountTotals(incomes) {
+  const totals = new Map();
+  incomes.forEach((item) => {
+    const name = item.operatorName || "Nao identificado";
+    if (!totals.has(name)) {
+      totals.set(name, { name, count: 0 });
+    }
+    totals.get(name).count += 1;
+  });
+  return [...totals.values()].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, "pt"));
+}
+
 function getServiceTypeTotals(incomes) {
   const totals = new Map([
     ["Atendimento", { name: "Atendimento por garota", total: 0, count: 0 }],
@@ -1045,6 +1111,37 @@ function renderCategoryBreakdown(selector, items, emptyTitle = "Sem categoria") 
     : `<article class="payment-card"><strong>${emptyTitle}</strong><span>Nenhuma despesa no periodo.</span></article>`;
 }
 
+function renderFineBreakdown(selector, items, emptyTitle = "Sem multas") {
+  const container = document.querySelector(selector);
+  if (!container) {
+    return;
+  }
+  container.innerHTML = items.length
+    ? items.map((item) => `
+      <article class="payment-card">
+        <strong>${item.name}</strong>
+        <span>Valor: ${currency.format(item.total)}</span>
+        <span>Motivo: ${item.reason}</span>
+      </article>
+    `).join("")
+    : `<article class="payment-card"><strong>${emptyTitle}</strong><span>Nenhuma multa no periodo.</span></article>`;
+}
+
+function renderOperatorCountBreakdown(selector, items, emptyTitle = "Sem operacionais") {
+  const container = document.querySelector(selector);
+  if (!container) {
+    return;
+  }
+  container.innerHTML = items.length
+    ? items.map((item) => `
+      <article class="payment-card">
+        <strong>${item.name}</strong>
+        <span>Registros: ${item.count}</span>
+      </article>
+    `).join("")
+    : `<article class="payment-card"><strong>${emptyTitle}</strong><span>Nenhum registro no periodo.</span></article>`;
+}
+
 function renderMonthlyReport() {
   const { start, end, year, month } = getMonthRange();
   const previous = getPreviousMonthRange(year, month);
@@ -1065,6 +1162,8 @@ function renderMonthlyReport() {
   const onlineIncome = getIncomesByServiceType(monthIncome, "Online");
   const presentialTotals = getAttendantTotals(presentialIncome);
   const onlineTotals = getAttendantTotals(onlineIncome);
+  const fineTotals = getFineTotals(monthIncome);
+  const operatorCountTotals = getOperatorCountTotals(monthIncome);
   const locationTotals = getLocationTotals(monthIncome);
   const categoryTotals = getCategoryTotals(monthExpenses);
   const monthRecords = [
@@ -1104,6 +1203,8 @@ function renderMonthlyReport() {
   `).join("");
   renderAttendantBreakdown("#monthlyPresentialBreakdown", presentialTotals, "Sem presencial");
   renderAttendantBreakdown("#monthlyOnlineBreakdown", onlineTotals, "Sem online");
+  renderFineBreakdown("#monthlyFineBreakdown", fineTotals, "Sem multas");
+  renderOperatorCountBreakdown("#monthlyOperatorCountBreakdown", operatorCountTotals, "Sem operacionais");
   renderSimpleBreakdown("#monthlyLocationBreakdown", locationTotals, "Sem localidade");
   renderCategoryBreakdown("#monthlyCategoryBreakdown", categoryTotals, "Sem categoria");
 
@@ -1131,7 +1232,7 @@ function renderMonthlyReport() {
     : `<tr><td colspan="8">Nenhum movimento encontrado neste mes.</td></tr>`;
 
   document.querySelector("#monthlyReport").value = [
-    "Acompanhamento para Cliente",
+    "Acompanhamento de Atendimentos",
     "",
     `📊 *RELATÓRIO MENSAL - ${monthTitle(start).toUpperCase()}*`,
     "",
@@ -1161,6 +1262,16 @@ function renderMonthlyReport() {
       `• ${item.name}: ${formatWhatsAppCurrency(item.total)} (${item.count} atendimentos)`
     ),
     "",
+    "🏢 *Multas:*",
+    ...fineTotals.map((item) =>
+      `• ${item.name}: ${formatWhatsAppCurrency(item.total)} (${item.reason})`
+    ),
+    "",
+    "👥 *Operacionais:*",
+    ...operatorCountTotals.map((item) =>
+      `• ${item.name}: ${item.count} registros`
+    ),
+    "",
     "📍 *Localidades:*",
     ...locationTotals.map((item) =>
       `• ${item.name}: ${formatWhatsAppCurrency(item.total)} (${item.count} atendimentos)`
@@ -1174,6 +1285,96 @@ function renderMonthlyReport() {
     "📌 *Resumo:*",
     `• Total Atendimentos: ${attendanceTotal}`
   ].join("\n");
+}
+
+function csvCell(value) {
+  const text = String(value ?? "");
+  return `"${text.replaceAll('"', '""')}"`;
+}
+
+function csvNumber(value) {
+  return Number(value || 0).toFixed(2).replace(".", ",");
+}
+
+function downloadTextFile(filename, content, mimeType) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function getMonthlyIncomeDetailTotals(incomes) {
+  const totals = new Map();
+  incomes.forEach((item) => {
+    const method = item.paymentMethod || "Nao informado";
+    const person = paymentNeedsPerson(method) ? item.transferPerson || "-" : "";
+    const detail = {
+      girl: normalizeAttendantName(item.clientName) || "Sem garota",
+      city: item.city || "Sem localidade",
+      method,
+      person,
+      operator: item.operatorName || "Nao identificado"
+    };
+    const key = JSON.stringify(detail);
+    if (!totals.has(key)) {
+      totals.set(key, { ...detail, total: 0, count: 0 });
+    }
+    const target = totals.get(key);
+    target.total += Number(item.amount || 0);
+    target.count += 1;
+  });
+  return [...totals.values()].sort((a, b) =>
+    a.girl.localeCompare(b.girl, "pt") ||
+    a.city.localeCompare(b.city, "pt") ||
+    a.method.localeCompare(b.method, "pt") ||
+    a.operator.localeCompare(b.operator, "pt")
+  );
+}
+
+function exportMonthlyCsv() {
+  const { start, end, year, month } = getMonthRange();
+  const monthIncome = state.income.filter((item) => inRange(item, start, end));
+  const monthExpenses = state.expenses.filter((item) => inRange(item, start, end));
+  const incomeTotal = sum(monthIncome);
+  const expenseTotal = sum(monthExpenses);
+  const balance = incomeTotal - expenseTotal;
+  const attendanceCount = getIncomesByServiceType(monthIncome, "Atendimento").length;
+  const onlineCount = getIncomesByServiceType(monthIncome, "Online").length;
+  const incomeDetailTotals = getMonthlyIncomeDetailTotals(monthIncome);
+  const categoryTotals = getCategoryTotals(monthExpenses);
+
+  const rows = [
+    [`RELATORIO MENSAL - ${monthTitle(start).toUpperCase()}`],
+    [],
+    ["Resumo"],
+    ["Total entradas", "Total saidas", "Saldo do mes", "Atendimentos", "Chamadas/Foto/Video"],
+    [csvNumber(incomeTotal), csvNumber(expenseTotal), csvNumber(balance), attendanceCount, onlineCount],
+    [],
+    ["Entradas por detalhe"],
+    ["Garota", "Localidade", "Metodo de pagamento", "Pessoa MB WAY/IBAN/Transferencia", "Operacional", "Total", "Quantidade"],
+    ...incomeDetailTotals.map((item) => [
+      item.girl,
+      item.city,
+      item.method,
+      item.person,
+      item.operator,
+      csvNumber(item.total),
+      item.count
+    ]),
+    [],
+    ["Despesas por categoria"],
+    ["Categoria", "Total", "Quantidade"],
+    ...categoryTotals.map((item) => [item.name, csvNumber(item.total), item.count])
+  ];
+
+  const csv = `\uFEFF${rows.map((row) => row.map(csvCell).join(";")).join("\n")}`;
+  downloadTextFile(`relatorio-mensal-${year}-${String(month).padStart(2, "0")}.csv`, csv, "text/csv;charset=utf-8");
+  showToast("CSV mensal exportado.");
 }
 
 function renderWeeklyRecords(records) {
@@ -1207,7 +1408,7 @@ function renderWeeklyRecords(records) {
 }
 
 function getDailyWeeklyTotals(start, incomes, expenses) {
-  const dayNames = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"];
+  const dayNames = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
   return Array.from({ length: 7 }, (_, index) => {
     const date = new Date(start);
     date.setDate(start.getDate() + index);
@@ -1690,6 +1891,20 @@ function isFineLine(line) {
   return /\bmulta\b/i.test(normalizeText(line));
 }
 
+function getFineTargetFromLine(line, fallbackAttendant) {
+  const normalizedLine = normalizeText(line);
+  const candidates = [
+    fallbackAttendant,
+    ...Object.values(attendantNameMap),
+    ...state.income.map((item) => item.clientName),
+    ...importPreviewRecords.map((item) => item.clientName)
+  ]
+    .map(normalizeAttendantName)
+    .filter((name) => name && normalizeText(name) !== "agencia");
+  const found = candidates.find((name) => normalizedLine.includes(normalizeText(name)));
+  return found || normalizeAttendantName(fallbackAttendant) || "Agência";
+}
+
 function parseWhatsappImportText(text, attendant, city, importType = "attendance") {
   const records = [];
   let currentDate = null;
@@ -1715,7 +1930,9 @@ function parseWhatsappImportText(text, attendant, city, importType = "attendance
     }
 
     const paymentMethod = getPaymentMethodFromLine(cleanedLine);
-    const operatorName = importType === "attendance" && isFineLine(cleanedLine) ? "Agência" : getOperatorFromLine(cleanedLine);
+    const fineLine = importType === "attendance" && isFineLine(cleanedLine);
+    const fineTarget = fineLine ? getFineTargetFromLine(cleanedLine, attendant) : "";
+    const operatorName = fineLine ? "Agência" : getOperatorFromLine(cleanedLine);
     const lineAttendant = importType === "call" ? getAttendantFromLine(cleanedLine, "") : attendant;
     const serviceType = importType === "call" ? "Online" : "Atendimento";
     const finalAttendant = importType === "call" ? lineAttendant || "Agência" : attendant || "Nao identificado";
@@ -1731,9 +1948,9 @@ function parseWhatsappImportText(text, attendant, city, importType = "attendance
       city: finalCity,
       amount,
       serviceType,
-      description: cleanedLine
+      description: fineLine ? `[Multa: ${fineTarget}] ${cleanedLine}` : cleanedLine
     };
-    if (importType === "attendance") {
+    if (importType === "attendance" && !fineLine) {
       record.warning = getImportDuplicateWarning(record);
     }
     records.push(record);
@@ -2266,6 +2483,7 @@ document.querySelector("#copyMonthlyReport").addEventListener("click", async () 
   }
   showToast("Relatorio mensal copiado.");
 });
+document.querySelector("#exportMonthlyCsv").addEventListener("click", exportMonthlyCsv);
 document.querySelector("#downloadReportImage").addEventListener("click", downloadWeeklyReportImage);
 document.querySelector("#printReportPdf").addEventListener("click", printWeeklyReportPdf);
 
