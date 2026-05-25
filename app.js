@@ -92,6 +92,8 @@ const seedData = {
 let state = loadState();
 let selectedWeeklyIds = null;
 let importPreviewRecords = [];
+let incomeCurrentPage = 1;
+const INCOME_PAGE_SIZE = 20;
 
 function loadState() {
   const stored = localStorage.getItem(STORAGE_KEY);
@@ -455,27 +457,92 @@ function getLastSixMonths() {
   });
 }
 
+function getDashboardSelectedMonth() {
+  const value = document.querySelector("#dashboardMonth")?.value;
+  if (!value) {
+    return new Date(today.getFullYear(), today.getMonth(), 1);
+  }
+  const [year, month] = value.split("-").map(Number);
+  if (!year || !month) {
+    return new Date(today.getFullYear(), today.getMonth(), 1);
+  }
+  return new Date(year, month - 1, 1);
+}
+
+function syncDashboardPeriodControls() {
+  const selectedPeriod = document.querySelector("#dashboardPeriod")?.value || "month";
+  document.querySelector("#dashboardMonthField")?.classList.toggle("hidden", selectedPeriod !== "month");
+  document.querySelector("#dashboardWeekField")?.classList.toggle("hidden", selectedPeriod !== "week");
+}
+
+function getDashboardPeriodRange() {
+  const selectedPeriod = document.querySelector("#dashboardPeriod")?.value || "month";
+  if (selectedPeriod === "week") {
+    const weekValue = document.querySelector("#dashboardWeek")?.value;
+    const selectedDate = weekValue ? parseLocalDate(weekValue) : today;
+    const { start, end } = getDashboardWeekRange(selectedDate);
+    return {
+      period: "week",
+      start,
+      end,
+      title: `Semana ${formatShortDate(start)} - ${formatShortDate(end)}`,
+      balanceLabel: "Saldo semanal",
+      incomeLabel: "Entradas semanais",
+      expenseLabel: "Saidas semanais",
+      help: `Entradas menos despesas de ${formatShortDate(start)} a ${formatShortDate(end)}`
+    };
+  }
+
+  const start = getDashboardSelectedMonth();
+  const end = new Date(start.getFullYear(), start.getMonth() + 1, 0, 23, 59, 59, 999);
+  return {
+    period: "month",
+    start,
+    end,
+    title: monthTitle(start),
+    balanceLabel: "Saldo mensal",
+    incomeLabel: "Entradas (balanco)",
+    expenseLabel: "Saidas (despesas)",
+    help: `Entradas menos despesas em ${monthTitle(start)}`
+  };
+}
+
 function renderDashboard() {
   applyTheme(state.theme);
-  const mayIncome = state.income.filter(isMayCurrentYear);
-  const mayExpenses = state.expenses.filter(isMayCurrentYear);
-  const incomeTotal = sum(mayIncome);
-  const expenseTotal = sum(mayExpenses);
+  syncDashboardPeriodControls();
+  const dashboardPeriod = getDashboardPeriodRange();
+  const periodIncome = state.income.filter((item) => inRange(item, dashboardPeriod.start, dashboardPeriod.end));
+  const periodExpenses = state.expenses.filter((item) => inRange(item, dashboardPeriod.start, dashboardPeriod.end));
+  const incomeTotal = sum(periodIncome);
+  const expenseTotal = sum(periodExpenses);
 
+  document.querySelector("#dashboardPeriodTitle").textContent = dashboardPeriod.title;
+  document.querySelector("#dashboardBalanceLabel").textContent = dashboardPeriod.balanceLabel;
+  document.querySelector("#dashboardIncomeLabel").textContent = dashboardPeriod.incomeLabel;
+  document.querySelector("#dashboardExpenseLabel").textContent = dashboardPeriod.expenseLabel;
+  document.querySelector("#dashboardBalanceHelp").textContent = dashboardPeriod.help;
   document.querySelector("#monthlyBalance").textContent = currency.format(incomeTotal - expenseTotal);
   document.querySelector("#incomeTotal").textContent = currency.format(incomeTotal);
   document.querySelector("#expenseTotal").textContent = currency.format(expenseTotal);
-  document.querySelector("#incomeCount").textContent = `${mayIncome.length} registros`;
-  document.querySelector("#expenseCount").textContent = `${mayExpenses.length} registros`;
+  document.querySelector("#incomeCount").textContent = `${periodIncome.length} registros`;
+  document.querySelector("#expenseCount").textContent = `${periodExpenses.length} registros`;
 
-  renderCities(mayIncome, mayExpenses);
-  renderRecentRows();
+  const statusPanel = document.querySelector(".status-panel");
+  if (dashboardPeriod.period === "week") {
+    statusPanel?.classList.remove("hidden");
+    renderWeeklyStatus(dashboardPeriod.start, dashboardPeriod.end);
+  } else {
+    statusPanel?.classList.add("hidden");
+  }
+  renderCities(periodIncome, periodExpenses);
+  renderRecentRows(periodIncome, periodExpenses);
   renderExpenseRecentRows();
   renderCashFlowChart();
   renderWeeklyReport();
   renderMonthlyReport();
   renderAdminPanel();
   renderDynamicSelects();
+  renderIncomeEntries();
   renderImportPreview();
   updateUndoImportButton();
 }
@@ -531,6 +598,91 @@ function renderDynamicSelects() {
       select.value = currentValue;
     }
   });
+}
+
+function getDashboardWeekRange(referenceDate = today) {
+  const start = startOfWeek(referenceDate);
+  const end = new Date(start);
+  end.setDate(start.getDate() + 7);
+  end.setHours(23, 59, 59, 999);
+  return { start, end };
+}
+
+function getWeekDateKeys(start, days = 8) {
+  return Array.from({ length: days }, (_, index) => {
+    const date = new Date(start);
+    date.setDate(start.getDate() + index);
+    return {
+      key: toDateInputValue(date),
+      label: `${formatShortDate(date)}`
+    };
+  });
+}
+
+function getKnownAttendanceGirls() {
+  return [...new Set(state.income
+    .filter((item) => (item.serviceType || inferServiceTypeFromDescription(item.description)) === "Atendimento")
+    .map((item) => normalizeAttendantName(item.clientName))
+    .filter((name) => {
+      const normalized = normalizeText(name);
+      return name && normalized !== "agencia" && normalized !== "nao identificado";
+    }))]
+    .sort((a, b) => a.localeCompare(b, "pt"));
+}
+
+function renderStatusCard(title, complete, okText, pendingText) {
+  return `
+    <article class="status-card ${complete ? "complete" : "pending"}">
+      <strong>${title}</strong>
+      <span>${complete ? "Completo" : "Pendente"}</span>
+      <span>${complete ? okText : pendingText}</span>
+    </article>
+  `;
+}
+
+function renderWeeklyStatus(selectedStart, selectedEnd) {
+  const container = document.querySelector("#weeklyStatusGrid");
+  const range = document.querySelector("#weeklyStatusRange");
+  if (!container || !range) {
+    return;
+  }
+
+  const { start, end } = selectedStart && selectedEnd
+    ? { start: selectedStart, end: selectedEnd }
+    : getDashboardWeekRange();
+  const weekIncome = state.income.filter((item) => inRange(item, start, end));
+  const attendanceIncome = getIncomesByServiceType(weekIncome, "Atendimento");
+  const onlineIncome = getIncomesByServiceType(weekIncome, "Online");
+  const weekDays = getWeekDateKeys(start);
+  const filledDays = new Set(weekIncome.map((item) => item.date));
+  const missingDays = weekDays.filter((item) => !filledDays.has(item.key)).map((item) => item.label);
+  const knownGirls = getKnownAttendanceGirls();
+  const weekGirls = new Set(attendanceIncome.map((item) => normalizeAttendantName(item.clientName)));
+  const missingGirls = knownGirls.filter((name) => !weekGirls.has(name));
+  const onlineDays = new Set(onlineIncome.map((item) => item.date));
+  const missingOnlineDays = weekDays.filter((item) => !onlineDays.has(item.key)).map((item) => item.label);
+
+  range.textContent = `${formatShortDate(start)} - ${formatShortDate(end)}`;
+  container.innerHTML = [
+    renderStatusCard(
+      "Dias preenchidos",
+      missingDays.length === 0,
+      "Todos os dias da semana possuem registros.",
+      `Faltam: ${missingDays.join(", ") || "sem registros"}`
+    ),
+    renderStatusCard(
+      "Atendimento por garota",
+      knownGirls.length > 0 && missingGirls.length === 0,
+      `${knownGirls.length} garotas registradas nesta semana.`,
+      knownGirls.length ? `Faltam: ${missingGirls.join(", ") || "nenhuma"}` : "Sem garotas de atendimento no historico."
+    ),
+    renderStatusCard(
+      "Chamada, foto ou video",
+      missingOnlineDays.length === 0,
+      "Online preenchido em todos os dias da semana.",
+      `Faltam: ${missingOnlineDays.join(", ") || "sem registros"}`
+    )
+  ].join("");
 }
 
 function renderAdminPanel() {
@@ -606,13 +758,13 @@ function renderCities(incomes, expenses) {
     })
     .join("");
 
-  document.querySelector("#cityList").innerHTML = rows || "<p>Nenhum valor registrado em maio.</p>";
+  document.querySelector("#cityList").innerHTML = rows || "<p>Nenhum valor registrado neste periodo.</p>";
 }
 
-function renderRecentRows() {
+function renderRecentRows(incomes = state.income, expenses = state.expenses) {
   const rows = [
-    ...state.income.map((item) => ({ ...item, type: "Entrada", amountType: "income", recordType: "income" })),
-    ...state.expenses.map((item) => ({ ...item, type: "Saida", amountType: "expense", recordType: "expense" }))
+    ...incomes.map((item) => ({ ...item, type: "Entrada", amountType: "income", recordType: "income" })),
+    ...expenses.map((item) => ({ ...item, type: "Saida", amountType: "expense", recordType: "expense" }))
   ]
     .sort((a, b) => parseLocalDate(b.date) - parseLocalDate(a.date))
     .slice(0, 8)
@@ -637,7 +789,7 @@ function renderRecentRows() {
     })
     .join("");
 
-  document.querySelector("#recentRows").innerHTML = rows;
+  document.querySelector("#recentRows").innerHTML = rows || `<tr><td colspan="7">Nenhum movimento neste periodo.</td></tr>`;
 }
 
 function renderExpenseRecentRows() {
@@ -671,6 +823,92 @@ function renderExpenseRecentRows() {
     .join("");
 
   container.innerHTML = rows || `<tr><td colspan="6">Nenhuma despesa registrada.</td></tr>`;
+}
+
+function setFilterOptions(selector, values, placeholder) {
+  const select = document.querySelector(selector);
+  if (!select) {
+    return;
+  }
+  const currentValue = select.value;
+  const cleanValues = [...new Set(values.filter(Boolean))]
+    .sort((a, b) => String(a).localeCompare(String(b), "pt"));
+  select.innerHTML = [`<option value="">${placeholder}</option>`, ...cleanValues.map((value) => `<option>${value}</option>`)].join("");
+  if (cleanValues.includes(currentValue)) {
+    select.value = currentValue;
+  }
+}
+
+function getIncomeFilterValues() {
+  return {
+    girl: document.querySelector("#incomeFilterGirl")?.value || "",
+    operator: document.querySelector("#incomeFilterOperator")?.value || "",
+    city: document.querySelector("#incomeFilterCity")?.value || "",
+    payment: document.querySelector("#incomeFilterPayment")?.value || ""
+  };
+}
+
+function renderIncomeEntries() {
+  const container = document.querySelector("#incomeRows");
+  if (!container) {
+    return;
+  }
+
+  setFilterOptions("#incomeFilterGirl", state.income.map((item) => normalizeAttendantName(item.clientName)), "Todas");
+  setFilterOptions("#incomeFilterOperator", state.income.map((item) => item.operatorName), "Todos");
+  setFilterOptions("#incomeFilterCity", state.income.map((item) => item.city), "Todas");
+  setFilterOptions("#incomeFilterPayment", state.income.map((item) => item.paymentMethod), "Todos");
+
+  const filters = getIncomeFilterValues();
+  const filteredRows = state.income
+    .filter((item) => !filters.girl || normalizeAttendantName(item.clientName) === filters.girl)
+    .filter((item) => !filters.operator || item.operatorName === filters.operator)
+    .filter((item) => !filters.city || item.city === filters.city)
+    .filter((item) => !filters.payment || item.paymentMethod === filters.payment)
+    .map((item, index) => ({ ...item, listIndex: index }))
+    .sort((a, b) => {
+      const dateDiff = parseLocalDate(b.date) - parseLocalDate(a.date);
+      return dateDiff || b.listIndex - a.listIndex;
+    });
+
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / INCOME_PAGE_SIZE));
+  incomeCurrentPage = Math.min(Math.max(1, incomeCurrentPage), totalPages);
+  const pageStart = (incomeCurrentPage - 1) * INCOME_PAGE_SIZE;
+  const pageRows = filteredRows.slice(pageStart, pageStart + INCOME_PAGE_SIZE);
+
+  container.innerHTML = pageRows.length
+    ? pageRows.map((item) => {
+      const method = item.transferPerson ? `${item.paymentMethod} - ${item.transferPerson}` : item.paymentMethod;
+      return `
+        <tr>
+          <td>${normalizeAttendantName(item.clientName) || "-"}</td>
+          <td>${item.operatorName || "-"}</td>
+          <td>${item.city || "-"}</td>
+          <td>${method || "-"}</td>
+          <td>${dateFormatter.format(parseLocalDate(item.date))}</td>
+          <td class="money-cell">${currency.format(item.amount)}</td>
+          <td>${item.description || "-"}</td>
+          <td>
+            <div class="table-actions">
+              <button class="table-action-button" type="button" data-edit-type="income" data-edit-id="${item.id}">Editar</button>
+              <button class="table-action-button danger-action-button" type="button" data-delete-type="income" data-delete-id="${item.id}">Apagar</button>
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join("")
+    : `<tr><td colspan="8">Nenhuma entrada encontrada com estes filtros.</td></tr>`;
+
+  const info = document.querySelector("#incomePaginationInfo");
+  const previousButton = document.querySelector("#incomePrevPage");
+  const nextButton = document.querySelector("#incomeNextPage");
+  if (info && previousButton && nextButton) {
+    const startLabel = filteredRows.length ? pageStart + 1 : 0;
+    const endLabel = Math.min(pageStart + INCOME_PAGE_SIZE, filteredRows.length);
+    info.textContent = `${startLabel}-${endLabel} de ${filteredRows.length} registros`;
+    previousButton.disabled = incomeCurrentPage <= 1;
+    nextButton.disabled = incomeCurrentPage >= totalPages;
+  }
 }
 
 function renderCashFlowChart() {
@@ -752,7 +990,7 @@ function getWeekRange() {
   const selectedDate = weekStartInput?.value ? parseLocalDate(weekStartInput.value) : today;
   const start = startOfWeek(selectedDate);
   const end = new Date(start);
-  end.setDate(start.getDate() + 6);
+  end.setDate(start.getDate() + 7);
   end.setHours(23, 59, 59, 999);
   return { start, end };
 }
@@ -776,7 +1014,7 @@ function getPreviousWeekRange(start) {
   const previousStart = new Date(start);
   previousStart.setDate(start.getDate() - 7);
   const previousEnd = new Date(previousStart);
-  previousEnd.setDate(previousStart.getDate() + 6);
+  previousEnd.setDate(previousStart.getDate() + 7);
   previousEnd.setHours(23, 59, 59, 999);
   return { start: previousStart, end: previousEnd };
 }
@@ -1408,8 +1646,8 @@ function renderWeeklyRecords(records) {
 }
 
 function getDailyWeeklyTotals(start, incomes, expenses) {
-  const dayNames = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
-  return Array.from({ length: 7 }, (_, index) => {
+  const dayNames = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"];
+  return Array.from({ length: 8 }, (_, index) => {
     const date = new Date(start);
     date.setDate(start.getDate() + index);
     const key = toDateInputValue(date);
@@ -1637,6 +1875,18 @@ async function editMovementDateAndAmount(type, id) {
   if (!Number.isFinite(newAmount) || newAmount < 0) {
     showToast("Valor invalido.");
     return;
+  }
+
+  if (type === "expense") {
+    const newDescription = window.prompt("Nova descricao da despesa:", item.description || "");
+    if (newDescription === null) {
+      return;
+    }
+    if (!newDescription.trim()) {
+      showToast("Descricao invalida.");
+      return;
+    }
+    item.description = newDescription.trim();
   }
 
   item.date = newDate;
@@ -2244,6 +2494,14 @@ function setDefaultDates() {
   if (monthStartInput && !monthStartInput.value) {
     monthStartInput.value = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
   }
+  const dashboardMonthInput = document.querySelector("#dashboardMonth");
+  if (dashboardMonthInput && !dashboardMonthInput.value) {
+    dashboardMonthInput.value = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
+  }
+  const dashboardWeekInput = document.querySelector("#dashboardWeek");
+  if (dashboardWeekInput && !dashboardWeekInput.value) {
+    dashboardWeekInput.value = toDateInputValue(startOfWeek(today));
+  }
 }
 
 document.querySelectorAll(".tab-button").forEach((button) => {
@@ -2261,6 +2519,17 @@ document.querySelectorAll(".tab-button").forEach((button) => {
 document.querySelector("#incomeForm").addEventListener("submit", handleIncomeSubmit);
 document.querySelector("#expenseForm").addEventListener("submit", handleExpenseSubmit);
 document.querySelector("#loginForm").addEventListener("submit", handleLogin);
+document.querySelector("#dashboardPeriod").addEventListener("change", () => {
+  syncDashboardPeriodControls();
+  renderDashboard();
+});
+document.querySelector("#dashboardMonth").addEventListener("change", renderDashboard);
+document.querySelector("#dashboardWeek").addEventListener("change", (event) => {
+  if (event.currentTarget.value) {
+    event.currentTarget.value = toDateInputValue(startOfWeek(parseLocalDate(event.currentTarget.value)));
+  }
+  renderDashboard();
+});
 document.querySelector("#logoutButton").addEventListener("click", () => {
   setAuthenticated(null);
   showToast("Sessao encerrada.");
@@ -2298,6 +2567,38 @@ document.querySelector("#expenseRecentRows").addEventListener("click", (event) =
   if (deleteButton) {
     deleteMovement(deleteButton.dataset.deleteType, deleteButton.dataset.deleteId);
   }
+});
+document.querySelector("#incomeRows").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-edit-id]");
+  if (button) {
+    editMovementDateAndAmount(button.dataset.editType, button.dataset.editId);
+    return;
+  }
+  const deleteButton = event.target.closest("[data-delete-id]");
+  if (deleteButton) {
+    deleteMovement(deleteButton.dataset.deleteType, deleteButton.dataset.deleteId);
+  }
+});
+["#incomeFilterGirl", "#incomeFilterOperator", "#incomeFilterCity", "#incomeFilterPayment"].forEach((selector) => {
+  document.querySelector(selector).addEventListener("change", () => {
+    incomeCurrentPage = 1;
+    renderIncomeEntries();
+  });
+});
+document.querySelector("#clearIncomeFilters").addEventListener("click", () => {
+  ["#incomeFilterGirl", "#incomeFilterOperator", "#incomeFilterCity", "#incomeFilterPayment"].forEach((selector) => {
+    document.querySelector(selector).value = "";
+  });
+  incomeCurrentPage = 1;
+  renderIncomeEntries();
+});
+document.querySelector("#incomePrevPage").addEventListener("click", () => {
+  incomeCurrentPage = Math.max(1, incomeCurrentPage - 1);
+  renderIncomeEntries();
+});
+document.querySelector("#incomeNextPage").addEventListener("click", () => {
+  incomeCurrentPage += 1;
+  renderIncomeEntries();
 });
 document.querySelector("#categoryForm").addEventListener("submit", async (event) => {
   event.preventDefault();
