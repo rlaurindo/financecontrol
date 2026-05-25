@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Controle Integrado de Maio</title>
-    <link rel="stylesheet" href="styles.css?v=20260522-domingo-sabado" />
+    <link rel="stylesheet" href="styles.css?v=20260525-painel-periodo-flexivel" />
   </head>
   <body>
     <section class="auth-screen" id="authScreen">
@@ -64,23 +64,60 @@
         </section>
 
         <section class="tab-panel active" id="dashboard">
+          <section class="panel dashboard-period-panel">
+            <div class="panel-heading compact-heading">
+              <div>
+                <p class="eyebrow">Periodo do painel</p>
+                <h2 id="dashboardPeriodTitle">Mes completo</h2>
+              </div>
+              <div class="dashboard-period-controls">
+                <label>
+                  Ver periodo
+                  <select id="dashboardPeriod">
+                    <option value="month">Mes completo</option>
+                    <option value="week">Semana</option>
+                  </select>
+                </label>
+                <label class="dashboard-period-field" id="dashboardMonthField">
+                  Mes
+                  <input id="dashboardMonth" type="month" />
+                </label>
+                <label class="dashboard-period-field hidden" id="dashboardWeekField">
+                  Semana
+                  <input id="dashboardWeek" type="date" />
+                </label>
+              </div>
+            </div>
+          </section>
+
           <div class="metric-grid">
             <article class="metric-card balance">
-              <span>Saldo mensal</span>
+              <span id="dashboardBalanceLabel">Saldo mensal</span>
               <strong id="monthlyBalance">€0,00</strong>
-              <small>Entradas menos despesas em maio</small>
+              <small id="dashboardBalanceHelp">Entradas menos despesas no mes</small>
             </article>
             <article class="metric-card">
-              <span>Entradas (balanco)</span>
+              <span id="dashboardIncomeLabel">Entradas (balanco)</span>
               <strong id="incomeTotal">€0,00</strong>
               <small id="incomeCount">0 registros</small>
             </article>
             <article class="metric-card">
-              <span>Saidas (despesas)</span>
+              <span id="dashboardExpenseLabel">Saidas (despesas)</span>
               <strong id="expenseTotal">€0,00</strong>
               <small id="expenseCount">0 registros</small>
             </article>
           </div>
+
+          <section class="panel status-panel hidden">
+            <div class="panel-heading compact-heading">
+              <div>
+                <p class="eyebrow">Status da semana</p>
+                <h2>Conferencia de preenchimento</h2>
+              </div>
+              <span id="weeklyStatusRange"></span>
+            </div>
+            <div class="status-grid" id="weeklyStatusGrid"></div>
+          </section>
 
           <div class="dashboard-grid">
             <section class="panel">
@@ -560,6 +597,57 @@
               <button type="submit">Guardar entrada</button>
             </form>
           </section>
+          <section class="panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Entradas registradas</p>
+                <h2>Consultar entradas</h2>
+              </div>
+              <button class="secondary-button" id="clearIncomeFilters" type="button">Limpar filtros</button>
+            </div>
+            <div class="filter-grid">
+              <label>
+                Garota
+                <select id="incomeFilterGirl"></select>
+              </label>
+              <label>
+                Operacional
+                <select id="incomeFilterOperator"></select>
+              </label>
+              <label>
+                Localidade
+                <select id="incomeFilterCity"></select>
+              </label>
+              <label>
+                Metodo de pagamento
+                <select id="incomeFilterPayment"></select>
+              </label>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Garota</th>
+                    <th>Operacional</th>
+                    <th>Localidade</th>
+                    <th>Metodo</th>
+                    <th>Data</th>
+                    <th class="money-cell">Valor</th>
+                    <th>Descricao</th>
+                    <th>Acao</th>
+                  </tr>
+                </thead>
+                <tbody id="incomeRows"></tbody>
+              </table>
+            </div>
+            <div class="pagination-bar" id="incomePagination">
+              <span id="incomePaginationInfo">0 registros</span>
+              <div>
+                <button class="secondary-button" id="incomePrevPage" type="button">Anterior</button>
+                <button class="secondary-button" id="incomeNextPage" type="button">Proxima</button>
+              </div>
+            </div>
+          </section>
         </section>
 
         <section class="tab-panel" id="expense">
@@ -624,7 +712,7 @@
     </div>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <script src="supabase-config.js?v=20260524-operacionais-registros"></script>
-    <script src="app.js?v=20260524-operacionais-registros"></script>
+    <script src="supabase-config.js?v=20260525-painel-periodo"></script>
+    <script src="app.js?v=20260525-painel-periodo-flexivel"></script>
   </body>
 </html>

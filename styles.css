@@ -331,6 +331,30 @@ h2 {
   margin-top: 16px;
 }
 
+.dashboard-period-panel {
+  margin-bottom: 16px;
+}
+
+.dashboard-period-panel .panel-heading {
+  margin-bottom: 0;
+}
+
+.dashboard-period-panel label {
+  min-width: 220px;
+}
+
+.dashboard-period-controls {
+  align-items: end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.dashboard-period-field {
+  min-width: 190px;
+}
+
 .panel {
   padding: 20px;
 }
@@ -392,7 +416,8 @@ canvas {
 
 table {
   border-collapse: collapse;
-  min-width: 760px;
+  min-width: 920px;
+  table-layout: fixed;
   width: 100%;
 }
 
@@ -402,6 +427,7 @@ td {
   padding: 12px 10px;
   text-align: left;
   vertical-align: top;
+  word-break: normal;
 }
 
 th {
@@ -411,11 +437,41 @@ th {
 
 .money-cell {
   text-align: right;
+  white-space: nowrap;
 }
 
 th:last-child,
 td:last-child {
-  width: 150px;
+  width: 112px;
+}
+
+th:nth-child(1),
+td:nth-child(1) {
+  width: 82px;
+}
+
+th:nth-child(4),
+td:nth-child(4),
+th:nth-child(5),
+td:nth-child(5),
+th:nth-child(6),
+td:nth-child(6) {
+  white-space: nowrap;
+}
+
+th:nth-child(5),
+td:nth-child(5) {
+  width: 126px;
+}
+
+th:nth-child(6),
+td:nth-child(6) {
+  width: 130px;
+}
+
+th:nth-child(7),
+td:nth-child(7) {
+  width: 115px;
 }
 
 .type-pill {
@@ -435,10 +491,7 @@ td:last-child {
   background: var(--red);
 }
 
-.report-panel,
-#income .form-panel,
-#control .form-panel,
-#import .form-panel {
+#control .form-panel {
   max-width: 980px;
 }
 
@@ -448,6 +501,99 @@ td:last-child {
   grid-template-columns: minmax(220px, 280px) auto;
   gap: 12px;
   margin-bottom: 16px;
+}
+
+.filter-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.status-panel {
+  margin-top: 16px;
+}
+
+#weeklyStatusRange {
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.status-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.status-card {
+  background: #fbfcfb;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.status-card.complete {
+  border-color: rgba(22, 115, 95, 0.32);
+}
+
+.status-card.pending {
+  border-color: rgba(184, 72, 63, 0.32);
+}
+
+.status-card strong,
+.status-card span {
+  display: block;
+}
+
+.status-card strong {
+  margin-bottom: 6px;
+}
+
+.status-card span {
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.status-card.complete span:first-of-type {
+  color: var(--green);
+  font-weight: 800;
+}
+
+.status-card.pending span:first-of-type {
+  color: var(--red);
+  font-weight: 800;
+}
+
+.pagination-bar {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.pagination-bar > div {
+  display: flex;
+  gap: 8px;
+}
+
+.pagination-bar .secondary-button {
+  min-height: 38px;
+  padding: 0 14px;
+}
+
+.pagination-bar .secondary-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+#income .panel-heading .secondary-button {
+  align-self: center;
+  min-height: 40px;
+  padding: 0 14px;
 }
 
 .report-actions {
@@ -631,7 +777,7 @@ td:last-child {
 }
 
 .import-panel {
-  max-width: 1180px;
+  max-width: none;
 }
 
 .import-form {
@@ -663,6 +809,45 @@ td:last-child {
 .import-preview-wrap {
   max-height: 520px;
   overflow: auto;
+}
+
+.import-preview-wrap table {
+  min-width: 1180px;
+}
+
+.import-preview-wrap th:nth-child(1),
+.import-preview-wrap td:nth-child(1) {
+  text-align: center;
+  width: 70px;
+}
+
+.import-preview-wrap th:nth-child(2),
+.import-preview-wrap td:nth-child(2) {
+  white-space: nowrap;
+  width: 112px;
+}
+
+.import-preview-wrap th:nth-child(3),
+.import-preview-wrap td:nth-child(3),
+.import-preview-wrap th:nth-child(4),
+.import-preview-wrap td:nth-child(4),
+.import-preview-wrap th:nth-child(5),
+.import-preview-wrap td:nth-child(5),
+.import-preview-wrap th:nth-child(6),
+.import-preview-wrap td:nth-child(6),
+.import-preview-wrap th:nth-child(7),
+.import-preview-wrap td:nth-child(7) {
+  width: 130px;
+}
+
+.import-preview-wrap th:nth-child(8),
+.import-preview-wrap td:nth-child(8) {
+  width: 110px;
+}
+
+.import-preview-wrap th:nth-child(9),
+.import-preview-wrap td:nth-child(9) {
+  width: auto;
 }
 
 .import-checkbox {
@@ -775,7 +960,7 @@ td:last-child {
 .table-actions,
 .record-inline-actions {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 5px;
   justify-content: flex-end;
 }
@@ -895,6 +1080,15 @@ button[type="submit"] {
     flex-direction: column;
   }
 
+  .dashboard-period-controls {
+    justify-content: stretch;
+  }
+
+  .dashboard-period-panel label,
+  .dashboard-period-field {
+    min-width: 0;
+  }
+
   .report-actions {
     justify-content: stretch;
   }
@@ -912,11 +1106,13 @@ button[type="submit"] {
   .week-controls,
   .weekly-layout,
   .report-summary,
+  .status-grid,
   #paymentBreakdown,
   #monthlyPaymentBreakdown,
   .breakdown-grid,
   #monthlyComparison,
   .control-grid,
+  .filter-grid,
   .inline-form,
   .entry-form {
     grid-template-columns: 1fr;
