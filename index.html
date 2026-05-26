@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Controle Integrado de Maio</title>
-    <link rel="stylesheet" href="styles.css?v=20260525-painel-periodo-flexivel" />
+    <link rel="stylesheet" href="styles.css?v=20260526-paginacao-tema" />
   </head>
   <body>
     <section class="auth-screen" id="authScreen">
@@ -164,6 +164,13 @@
                 <tbody id="recentRows"></tbody>
               </table>
             </div>
+            <div class="pagination-bar" id="recentPagination">
+              <span id="recentPaginationInfo">0 registros</span>
+              <div>
+                <button class="secondary-button" id="recentPrevPage" type="button">Anterior</button>
+                <button class="secondary-button" id="recentNextPage" type="button">Proxima</button>
+              </div>
+            </div>
           </section>
         </section>
 
@@ -220,6 +227,13 @@
                 </thead>
                 <tbody id="importPreviewRows"></tbody>
               </table>
+            </div>
+            <div class="pagination-bar" id="importPagination">
+              <span id="importPaginationInfo">0 registros</span>
+              <div>
+                <button class="secondary-button" id="importPrevPage" type="button">Anterior</button>
+                <button class="secondary-button" id="importNextPage" type="button">Proxima</button>
+              </div>
             </div>
           </section>
         </section>
@@ -321,6 +335,13 @@
                 </div>
               </div>
               <div id="weeklyRecords"></div>
+              <div class="pagination-bar" id="weeklyPagination">
+                <span id="weeklyPaginationInfo">0 registros</span>
+                <div>
+                  <button class="secondary-button" id="weeklyPrevPage" type="button">Anterior</button>
+                  <button class="secondary-button" id="weeklyNextPage" type="button">Proxima</button>
+                </div>
+              </div>
               </section>
               <section class="weekly-chart" aria-label="Grafico da semana">
                 <div class="panel-heading compact-heading">
@@ -447,8 +468,15 @@
                         <th>Acao</th>
                       </tr>
                     </thead>
-                    <tbody id="monthlyRows"></tbody>
-                  </table>
+                <tbody id="monthlyRows"></tbody>
+              </table>
+            </div>
+                <div class="pagination-bar" id="monthlyPagination">
+                  <span id="monthlyPaginationInfo">0 registros</span>
+                  <div>
+                    <button class="secondary-button" id="monthlyPrevPage" type="button">Anterior</button>
+                    <button class="secondary-button" id="monthlyNextPage" type="button">Proxima</button>
+                  </div>
                 </div>
               </section>
               <label class="copy-box">
@@ -464,7 +492,7 @@
             <div class="panel-heading">
               <div>
                 <p class="eyebrow">Aparencia</p>
-                <h2>Tema da aplicacao</h2>
+                <h2>Tema do usuario</h2>
               </div>
             </div>
             <div class="theme-options" id="themeOptions" aria-label="Escolher tema">
@@ -706,13 +734,20 @@
                 <tbody id="expenseRecentRows"></tbody>
               </table>
             </div>
+            <div class="pagination-bar" id="expensePagination">
+              <span id="expensePaginationInfo">0 registros</span>
+              <div>
+                <button class="secondary-button" id="expensePrevPage" type="button">Anterior</button>
+                <button class="secondary-button" id="expenseNextPage" type="button">Proxima</button>
+              </div>
+            </div>
           </section>
         </section>
       </main>
     </div>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <script src="supabase-config.js?v=20260525-painel-periodo"></script>
-    <script src="app.js?v=20260525-painel-periodo-flexivel"></script>
+    <script src="supabase-config.js?v=20260526-paginacao-tema"></script>
+    <script src="app.js?v=20260526-vitoria-normalizada"></script>
   </body>
 </html>

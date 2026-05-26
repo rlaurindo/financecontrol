@@ -1,25 +1,37 @@
-const STORAGE_KEY = "controle-integrado-maio-v1";
+﻿const STORAGE_KEY = "controle-integrado-maio-v1";
 const defaultCategories = ["Operacional", "Transporte", "Material", "Marketing", "Administrativo"];
 const defaultLocations = ["Porto", "Lisboa", "Faro", "Braga", "Funchal"];
 const defaultOperators = ["Ana Martins", "Rui Costa", "Sofia Reis", "Pedro Lima"];
-const defaultPaymentMethods = ["Dinheiro", "Cartao", "Transferencia", "MB WAY"];
+const defaultPaymentMethods = ["Dinheiro", "Cartao", "Transferencia", "MB WAY", "IBAN", "PayPal", "Revolut", "Wise"];
 const defaultTheme = "green";
 const availableThemes = ["green", "blue", "gray", "pink", "purple"];
 const AUTH_SESSION_KEY = "controle-integrado-supabase-session";
 const LAST_IMPORT_KEY = "controle-integrado-last-import";
+const USER_THEME_KEY_PREFIX = "controle-integrado-theme";
 const operatorEmojiMap = {
-  "😈": "Erick",
-  "😻": "Xavier",
-  "🌳": "Tayane",
-  "❤️": "Erica",
-  "♥️": "Erica",
-  "♥": "Erica",
-  "✨": "Cachos",
-  "🍑": "Duda",
-  "💙": "Ana"
+  "ðŸ˜ˆ": "Erick",
+  "ðŸ˜»": "Xavier",
+  "ðŸŒ³": "Tayane",
+  "â¤ï¸": "Erica",
+  "â™¥ï¸": "Erica",
+  "â™¥": "Erica",
+  "âœ¨": "Cachos",
+  "ðŸ‘": "Duda",
+  "ðŸ’™": "Ana"
 };
+const operatorSymbolMap = [
+  { symbols: ["😈", "ðŸ˜ˆ"], name: "Erick" },
+  { symbols: ["😻", "ðŸ˜»"], name: "Xavier" },
+  { symbols: ["🌳", "ðŸŒ³"], name: "Tayane" },
+  { symbols: ["❤️", "❤", "♥️", "♥", "â¤ï¸", "â™¥ï¸", "â™¥"], name: "Erica" },
+  { symbols: ["✨", "âœ¨"], name: "Cachos" },
+  { symbols: ["🍑", "ðŸ‘"], name: "Duda" },
+  { symbols: ["💙", "ðŸ’™"], name: "Ana" }
+];
 const attendantLocationMap = {
   ray: "Porto",
+  rai: "Porto",
+  raine: "Porto",
   duda: "Guimaraes",
   bea: "Guimaraes",
   vit: "Brasil",
@@ -33,20 +45,29 @@ const attendantLocationMap = {
   isa: "Leiria",
   isadora: "Leiria",
   kemy: "Braga",
+  kemmy: "Braga",
   rosario: "Braga"
 };
 const attendantNameMap = {
-  vit: "Vitória",
-  vitoria: "Vitória",
+  vit: "Vitoria",
+  vitoria: "Vitoria",
   gi: "Gi",
   gih: "Gi",
   isa: "Isa",
   isadora: "Isa",
-  rosario: "Rosário",
+  rosario: "Rosario",
   kemy: "Kemy",
+  kemmy: "Kemy",
   bea: "Bea",
   duda: "Duda",
   ray: "Ray",
+  rai: "Ray",
+  raine: "Ray",
+  "vitã³ria": "Vitoria",
+  "vitãria": "Vitoria",
+  bm: "BM",
+  iban: "Agencia",
+  ibam: "Agencia",
   laura: "Laura",
   raquel: "Raquel",
   mineira: "Mineira",
@@ -60,6 +81,11 @@ const defaultAuth = {
 const currency = new Intl.NumberFormat("pt-PT", {
   style: "currency",
   currency: "EUR"
+});
+
+const brlCurrency = new Intl.NumberFormat("pt-BR", {
+  style: "currency",
+  currency: "BRL"
 });
 
 const dateFormatter = new Intl.DateTimeFormat("pt-PT", {
@@ -92,8 +118,14 @@ const seedData = {
 let state = loadState();
 let selectedWeeklyIds = null;
 let importPreviewRecords = [];
+let recentCurrentPage = 1;
+let importCurrentPage = 1;
+let weeklyCurrentPage = 1;
+let monthlyCurrentPage = 1;
+let expenseCurrentPage = 1;
 let incomeCurrentPage = 1;
-const INCOME_PAGE_SIZE = 20;
+const RECORD_PAGE_SIZE = 20;
+const INCOME_PAGE_SIZE = RECORD_PAGE_SIZE;
 
 function loadState() {
   const stored = localStorage.getItem(STORAGE_KEY);
@@ -407,6 +439,32 @@ function sum(items) {
   return items.reduce((total, item) => total + Number(item.amount || 0), 0);
 }
 
+function paginateItems(items, currentPage, pageSize = RECORD_PAGE_SIZE) {
+  const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
+  const page = Math.min(Math.max(1, currentPage), totalPages);
+  const pageStart = (page - 1) * pageSize;
+  return {
+    page,
+    totalPages,
+    pageStart,
+    pageItems: items.slice(pageStart, pageStart + pageSize)
+  };
+}
+
+function updatePagination(prefix, totalItems, pageStart, currentPage, totalPages, pageSize = RECORD_PAGE_SIZE) {
+  const info = document.querySelector(`#${prefix}PaginationInfo`);
+  const previousButton = document.querySelector(`#${prefix}PrevPage`);
+  const nextButton = document.querySelector(`#${prefix}NextPage`);
+  if (!info || !previousButton || !nextButton) {
+    return;
+  }
+  const startLabel = totalItems ? pageStart + 1 : 0;
+  const endLabel = Math.min(pageStart + pageSize, totalItems);
+  info.textContent = `${startLabel}-${endLabel} de ${totalItems} registros`;
+  previousButton.disabled = currentPage <= 1;
+  nextButton.disabled = currentPage >= totalPages;
+}
+
 function isMayCurrentYear(item) {
   const date = parseLocalDate(item.date);
   return date.getFullYear() === currentYear && date.getMonth() === 4;
@@ -428,7 +486,12 @@ function formatShortDate(date) {
 }
 
 function formatWhatsAppCurrency(value) {
-  return `€${Number(value || 0).toFixed(2)}`;
+  return `EUR ${Number(value || 0).toFixed(2)}`;
+}
+
+function formatWhatsAppMethodCurrency(method, value) {
+  const currencyLabel = normalizeText(method) === "pix" ? "BRL" : "EUR";
+  return `${currencyLabel} ${Number(value || 0).toFixed(2)}`;
 }
 
 function startOfWeek(date) {
@@ -508,7 +571,7 @@ function getDashboardPeriodRange() {
 }
 
 function renderDashboard() {
-  applyTheme(state.theme);
+  applyTheme(getActiveTheme());
   syncDashboardPeriodControls();
   const dashboardPeriod = getDashboardPeriodRange();
   const periodIncome = state.income.filter((item) => inRange(item, dashboardPeriod.start, dashboardPeriod.end));
@@ -762,34 +825,35 @@ function renderCities(incomes, expenses) {
 }
 
 function renderRecentRows(incomes = state.income, expenses = state.expenses) {
-  const rows = [
+  const allRows = [
     ...incomes.map((item) => ({ ...item, type: "Entrada", amountType: "income", recordType: "income" })),
     ...expenses.map((item) => ({ ...item, type: "Saida", amountType: "expense", recordType: "expense" }))
   ]
-    .sort((a, b) => parseLocalDate(b.date) - parseLocalDate(a.date))
-    .slice(0, 8)
-    .map((item) => {
-      const method = item.transferPerson ? `${item.paymentMethod} - ${item.transferPerson}` : item.paymentMethod;
-      return `
-        <tr>
-          <td><span class="type-pill ${item.amountType}">${item.type}</span></td>
-          <td>${item.description}</td>
-          <td>${item.city}</td>
-          <td>${method}</td>
-          <td>${dateFormatter.format(parseLocalDate(item.date))}</td>
-          <td class="money-cell">${currency.format(item.amount)}</td>
-          <td>
-            <div class="table-actions">
-              <button class="table-action-button" type="button" data-edit-type="${item.recordType}" data-edit-id="${item.id}">Editar</button>
-              <button class="table-action-button danger-action-button" type="button" data-delete-type="${item.recordType}" data-delete-id="${item.id}">Apagar</button>
-            </div>
-          </td>
-        </tr>
-      `;
-    })
-    .join("");
+    .sort((a, b) => parseLocalDate(b.date) - parseLocalDate(a.date));
+  const pagination = paginateItems(allRows, recentCurrentPage);
+  recentCurrentPage = pagination.page;
+  const rows = pagination.pageItems.map((item) => {
+    const method = item.transferPerson ? `${item.paymentMethod} - ${item.transferPerson}` : item.paymentMethod;
+    return `
+      <tr>
+        <td><span class="type-pill ${item.amountType}">${item.type}</span></td>
+        <td>${item.description}</td>
+        <td>${item.city}</td>
+        <td>${method}</td>
+        <td>${dateFormatter.format(parseLocalDate(item.date))}</td>
+        <td class="money-cell">${currency.format(item.amount)}</td>
+        <td>
+          <div class="table-actions">
+            <button class="table-action-button" type="button" data-edit-type="${item.recordType}" data-edit-id="${item.id}">Editar</button>
+            <button class="table-action-button danger-action-button" type="button" data-delete-type="${item.recordType}" data-delete-id="${item.id}">Apagar</button>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join("");
 
   document.querySelector("#recentRows").innerHTML = rows || `<tr><td colspan="7">Nenhum movimento neste periodo.</td></tr>`;
+  updatePagination("recent", allRows.length, pagination.pageStart, recentCurrentPage, pagination.totalPages);
 }
 
 function renderExpenseRecentRows() {
@@ -798,14 +862,15 @@ function renderExpenseRecentRows() {
     return;
   }
 
-  const rows = state.expenses
+  const allRows = state.expenses
     .map((item, index) => ({ ...item, listIndex: index }))
     .sort((a, b) => {
       const dateDiff = parseLocalDate(b.date) - parseLocalDate(a.date);
       return dateDiff || b.listIndex - a.listIndex;
-    })
-    .slice(0, 10)
-    .map((item) => `
+    });
+  const pagination = paginateItems(allRows, expenseCurrentPage);
+  expenseCurrentPage = pagination.page;
+  const rows = pagination.pageItems.map((item) => `
       <tr>
         <td>${item.description}</td>
         <td>${item.category || "-"}</td>
@@ -823,6 +888,7 @@ function renderExpenseRecentRows() {
     .join("");
 
   container.innerHTML = rows || `<tr><td colspan="6">Nenhuma despesa registrada.</td></tr>`;
+  updatePagination("expense", allRows.length, pagination.pageStart, expenseCurrentPage, pagination.totalPages);
 }
 
 function setFilterOptions(selector, values, placeholder) {
@@ -1021,16 +1087,16 @@ function getPreviousWeekRange(start) {
 
 function getIncomeVariation(currentValue, previousValue) {
   if (!previousValue && currentValue > 0) {
-    return { label: "Variação de entradas", text: "Sem base anterior", className: "positive" };
+    return { label: "Variacao de entradas", text: "Sem base anterior", className: "positive" };
   }
   if (!previousValue && !currentValue) {
-    return { label: "Variação de entradas", text: "0,0% vs. período anterior", className: "neutral" };
+    return { label: "Variacao de entradas", text: "0,0% vs. periodo anterior", className: "neutral" };
   }
   const percent = ((currentValue - previousValue) / previousValue) * 100;
   const sign = percent > 0 ? "+" : "";
   return {
-    label: "Variação de entradas",
-    text: `${sign}${percent.toFixed(1).replace(".", ",")}% vs. período anterior`,
+    label: "Variacao de entradas",
+    text: `${sign}${percent.toFixed(1).replace(".", ",")}% vs. periodo anterior`,
     className: percent >= 0 ? "positive" : "negative"
   };
 }
@@ -1083,6 +1149,7 @@ function renderWeeklyReport() {
   renderWeeklyRecords(weekRecords);
   const dailyTotals = getDailyWeeklyTotals(start, weekIncome, weekExpenses);
   const paymentTotals = getPaymentMethodTotals(weekIncome, weekExpenses);
+  const accountPaymentTotals = getAccountPaymentTotals(weekIncome);
   const presentialIncome = getIncomesByServiceType(weekIncome, "Atendimento");
   const onlineIncome = getIncomesByServiceType(weekIncome, "Online");
   const presentialTotals = getAttendantTotals(presentialIncome);
@@ -1103,54 +1170,57 @@ function renderWeeklyReport() {
   document.querySelector("#weeklyReport").value = [
     "Acompanhamento de Atendimentos",
     "",
-    `📊 *RELATÓRIO SEMANAL - ${formatShortDate(start)} - ${formatShortDate(end)}*`,
+    `*RELATORIO SEMANAL - ${formatShortDate(start)} - ${formatShortDate(end)}*`,
     "",
     "💰 *Financeiro:*",
-    `• Entradas: ${formatWhatsAppCurrency(incomeTotal)}`,
-    `• Saídas: ${formatWhatsAppCurrency(expenseTotal)}`,
-    `• Saldo Líquido: ${formatWhatsAppCurrency(balance)}`,
-    `• ${incomeVariation.label}: ${incomeVariation.text}`,
+    `- Entradas: ${formatWhatsAppCurrency(incomeTotal)}`,
+    `- Saidas: ${formatWhatsAppCurrency(expenseTotal)}`,
+    `- Saldo Liquido: ${formatWhatsAppCurrency(balance)}`,
+    `- ${incomeVariation.label}: ${incomeVariation.text}`,
     "",
-    "📅 *Performance Diária:*",
-    ...dailyTotals.map((item) => `• ${item.label} (${formatShortDate(item.date)}): ${formatWhatsAppCurrency(item.balance)}`),
+    "📅 *Performance Diaria:*",
+    ...dailyTotals.map((item) => `- ${item.label} (${formatShortDate(item.date)}): ${formatWhatsAppCurrency(item.balance)}`),
     "",
-    "💳 *Métodos de Pagamento:*",
+    "💳 *Metodos de Pagamento:*",
     ...paymentTotals.map((item) =>
-      `• ${item.method}: Entradas ${formatWhatsAppCurrency(item.income)} | Saídas ${formatWhatsAppCurrency(item.expense)} | Saldo ${formatWhatsAppCurrency(item.balance)}`
+      `- ${item.method}: Entradas ${formatWhatsAppMethodCurrency(item.method, item.income)} | Saidas ${formatWhatsAppMethodCurrency(item.method, item.expense)} | Saldo ${formatWhatsAppMethodCurrency(item.method, item.balance)}`
     ),
+    "",
+    "💶 *Detalhes de Valores por Conta:*",
+    ...formatAccountPaymentLines(accountPaymentTotals),
     "",
     "🏢 *Presencial:*",
     ...presentialTotals.map((item) =>
-      `• ${item.name}: ${formatWhatsAppCurrency(item.total)} (${item.count} atendimentos)`
+      `- ${item.name}: ${formatWhatsAppCurrency(item.total)} (${item.count} atendimentos)`
     ),
     "",
     "🌐 *Online:*",
     ...onlineTotals.map((item) =>
-      `• ${item.name}: ${formatWhatsAppCurrency(item.total)} (${item.count} atendimentos)`
+      `- ${item.name}: ${formatWhatsAppCurrency(item.total)} (${item.count} atendimentos)`
     ),
     "",
     "🏢 *Multas:*",
     ...fineTotals.map((item) =>
-      `• ${item.name}: ${formatWhatsAppCurrency(item.total)} (${item.reason})`
+      `- ${item.name}: ${formatWhatsAppCurrency(item.total)} (${item.reason})`
     ),
     "",
     "👥 *Operacionais:*",
     ...operatorCountTotals.map((item) =>
-      `• ${item.name}: ${item.count} registros`
+      `- ${item.name}: ${item.count} registros`
     ),
     "",
     "📍 *Localidades:*",
     ...locationTotals.map((item) =>
-      `• ${item.name}: ${formatWhatsAppCurrency(item.total)} (${item.count} atendimentos)`
+      `- ${item.name}: ${formatWhatsAppCurrency(item.total)} (${item.count} atendimentos)`
     ),
     "",
     "🧾 *Categorias de Despesa:*",
     ...categoryTotals.map((item) =>
-      `• ${item.name}: ${formatWhatsAppCurrency(item.total)} (${item.count} despesas)`
+      `- ${item.name}: ${formatWhatsAppCurrency(item.total)} (${item.count} despesas)`
     ),
     "",
     "📈 *Resumo:*",
-    `• Total Atendimentos: ${attendanceTotal}`
+    `- Total Atendimentos: ${attendanceTotal}`
   ].join("\n");
 }
 
@@ -1178,6 +1248,78 @@ function getPaymentMethodTotals(incomes, expenses) {
     ...item,
     balance: item.income - item.expense
   }));
+}
+
+function getAccountPaymentTotals(incomes) {
+  const totals = new Map();
+  incomes
+    .filter((item) => paymentNeedsPerson(item.paymentMethod))
+    .forEach((item) => {
+      const method = item.paymentMethod || "Nao informado";
+      const rawPerson = String(item.transferPerson || "").trim() || inferAccountPersonFromDescription(item.description, item.paymentMethod);
+      const person = rawPerson ? normalizeAccountPersonName(rawPerson) : "Sem pessoa informada";
+      const key = `${method}::${normalizeText(person).trim()}`;
+      if (!totals.has(key)) {
+        totals.set(key, { method, person, total: 0, count: 0, missingDetails: [] });
+      }
+      const target = totals.get(key);
+      target.total += Number(item.amount || 0);
+      target.count += 1;
+      if (!rawPerson) {
+        target.missingDetails.push(`${formatShortDate(parseLocalDate(item.date))} - ${formatWhatsAppCurrency(item.amount)} - ${item.description || "sem descricao"}`);
+      }
+    });
+  return [...totals.values()].sort((a, b) =>
+    a.method.localeCompare(b.method, "pt") ||
+    b.total - a.total ||
+    a.person.localeCompare(b.person, "pt")
+  );
+}
+
+function formatAccountPaymentLines(totals) {
+  if (!totals.length) {
+    return ["- Sem valores por conta no periodo."];
+  }
+  return [
+    "- Metodo | Pessoa/Conta | Valor | Registros",
+    ...totals.flatMap((item) => [
+      `- ${item.method} | ${item.person} | ${formatWhatsAppCurrency(item.total)} | ${item.count}`,
+      ...item.missingDetails.map((detail) => `  > ${detail}`)
+    ])
+  ];
+}
+
+function normalizeAccountPersonName(name) {
+  const cleanName = String(name || "").trim();
+  const knownNames = [
+    "Erica",
+    "Erick",
+    "Raul",
+    "Gabriel",
+    "Adriano",
+    "Alexia",
+    "Laura",
+    "Duda",
+    "Vitoria",
+    "Gi",
+    "Gih",
+    "Kemy",
+    "Larissa",
+    "Isa",
+    "Wise",
+    "PayPal"
+  ];
+  const normalized = normalizeText(cleanName).trim();
+  return knownNames.find((item) => normalizeText(item) === normalized) || cleanName.replace(/\b\p{L}/gu, (letter) => letter.toUpperCase());
+}
+
+function inferAccountPersonFromDescription(description, method) {
+  const normalizedMethod = normalizeText(method).replace(/\s+/g, "");
+  const normalizedDescription = normalizeText(description);
+  if (normalizedMethod === "mbway" && /\b183\b/.test(normalizedDescription)) {
+    return "Gabriel";
+  }
+  return "";
 }
 
 function renderPaymentBreakdown(paymentTotals) {
@@ -1245,13 +1387,13 @@ function isFineIncome(item) {
 function getFineTarget(item) {
   const prefixMatch = String(item.description || "").match(/^\[Multa:\s*([^\]]+)\]/i);
   if (prefixMatch) {
-    return normalizeAttendantName(prefixMatch[1].trim()) || "Agência";
+    return normalizeAttendantName(prefixMatch[1].trim()) || "Agencia";
   }
   const clientName = normalizeAttendantName(item.clientName);
   if (normalizeText(clientName) !== "agencia") {
-    return clientName || "Agência";
+    return clientName || "Agencia";
   }
-  return getFineTargetFromLine(item.description, "") || "Agência";
+  return getFineTargetFromLine(item.description, "") || "Agencia";
 }
 
 function getFineReason(item) {
@@ -1396,6 +1538,7 @@ function renderMonthlyReport() {
   const incomeVariation = getIncomeVariation(incomeTotal, sum(previousIncome));
   const attendanceTotal = monthIncome.length;
   const paymentTotals = getPaymentMethodTotals(monthIncome, monthExpenses);
+  const accountPaymentTotals = getAccountPaymentTotals(monthIncome);
   const presentialIncome = getIncomesByServiceType(monthIncome, "Atendimento");
   const onlineIncome = getIncomesByServiceType(monthIncome, "Online");
   const presentialTotals = getAttendantTotals(presentialIncome);
@@ -1405,7 +1548,7 @@ function renderMonthlyReport() {
   const locationTotals = getLocationTotals(monthIncome);
   const categoryTotals = getCategoryTotals(monthExpenses);
   const monthRecords = [
-    ...monthIncome.map((item) => ({ ...item, type: "Entrada", amountType: "income", recordType: "income", detail: item.clientName })),
+    ...monthIncome.map((item) => ({ ...item, type: "Entrada", amountType: "income", recordType: "income", detail: normalizeAttendantName(item.clientName) })),
     ...monthExpenses.map((item) => ({ ...item, type: "Saida", amountType: "expense", recordType: "expense", detail: item.category }))
   ].sort((a, b) => parseLocalDate(a.date) - parseLocalDate(b.date));
 
@@ -1446,8 +1589,10 @@ function renderMonthlyReport() {
   renderSimpleBreakdown("#monthlyLocationBreakdown", locationTotals, "Sem localidade");
   renderCategoryBreakdown("#monthlyCategoryBreakdown", categoryTotals, "Sem categoria");
 
-  document.querySelector("#monthlyRows").innerHTML = monthRecords.length
-    ? monthRecords.map((item) => {
+  const monthlyPagination = paginateItems(monthRecords, monthlyCurrentPage);
+  monthlyCurrentPage = monthlyPagination.page;
+  document.querySelector("#monthlyRows").innerHTML = monthlyPagination.pageItems.length
+    ? monthlyPagination.pageItems.map((item) => {
       const method = item.transferPerson ? `${item.paymentMethod} - ${item.transferPerson}` : item.paymentMethod;
       return `
         <tr>
@@ -1468,65 +1613,69 @@ function renderMonthlyReport() {
       `;
     }).join("")
     : `<tr><td colspan="8">Nenhum movimento encontrado neste mes.</td></tr>`;
+  updatePagination("monthly", monthRecords.length, monthlyPagination.pageStart, monthlyCurrentPage, monthlyPagination.totalPages);
 
   document.querySelector("#monthlyReport").value = [
     "Acompanhamento de Atendimentos",
     "",
-    `📊 *RELATÓRIO MENSAL - ${monthTitle(start).toUpperCase()}*`,
+    `*RELATORIO MENSAL - ${monthTitle(start).toUpperCase()}*`,
     "",
     "💰 *Financeiro acumulado:*",
-    `• Entradas: ${formatWhatsAppCurrency(incomeTotal)}`,
-    `• Saídas: ${formatWhatsAppCurrency(expenseTotal)}`,
-    `• Saldo Líquido: ${formatWhatsAppCurrency(balance)}`,
-    `• ${incomeVariation.label}: ${incomeVariation.text}`,
+    `- Entradas: ${formatWhatsAppCurrency(incomeTotal)}`,
+    `- Saidas: ${formatWhatsAppCurrency(expenseTotal)}`,
+    `- Saldo Liquido: ${formatWhatsAppCurrency(balance)}`,
+    `- ${incomeVariation.label}: ${incomeVariation.text}`,
     "",
-    "📈 *Comparativo com mês anterior:*",
-    `• Saldo mês anterior: ${formatWhatsAppCurrency(previousBalance)}`,
-    `• Diferença total de saldo: ${formatWhatsAppCurrency(balanceDifference)}`,
-    `• Diferença do saldo positivo: ${formatWhatsAppCurrency(positiveDifference)}`,
+    "📈 *Comparativo com mes anterior:*",
+    `- Saldo mes anterior: ${formatWhatsAppCurrency(previousBalance)}`,
+    `- Diferenca total de saldo: ${formatWhatsAppCurrency(balanceDifference)}`,
+    `- Diferenca do saldo positivo: ${formatWhatsAppCurrency(positiveDifference)}`,
     "",
-    "💳 *Métodos de Pagamento:*",
+    "💳 *Metodos de Pagamento:*",
     ...paymentTotals.map((item) =>
-      `• ${item.method}: Entradas ${formatWhatsAppCurrency(item.income)} | Saídas ${formatWhatsAppCurrency(item.expense)} | Saldo ${formatWhatsAppCurrency(item.balance)}`
+      `- ${item.method}: Entradas ${formatWhatsAppMethodCurrency(item.method, item.income)} | Saidas ${formatWhatsAppMethodCurrency(item.method, item.expense)} | Saldo ${formatWhatsAppMethodCurrency(item.method, item.balance)}`
     ),
+    "",
+    "💶 *Detalhes de Valores por Conta:*",
+    ...formatAccountPaymentLines(accountPaymentTotals),
     "",
     "🏢 *Presencial:*",
     ...presentialTotals.map((item) =>
-      `• ${item.name}: ${formatWhatsAppCurrency(item.total)} (${item.count} atendimentos)`
+      `- ${item.name}: ${formatWhatsAppCurrency(item.total)} (${item.count} atendimentos)`
     ),
     "",
     "🌐 *Online:*",
     ...onlineTotals.map((item) =>
-      `• ${item.name}: ${formatWhatsAppCurrency(item.total)} (${item.count} atendimentos)`
+      `- ${item.name}: ${formatWhatsAppCurrency(item.total)} (${item.count} atendimentos)`
     ),
     "",
     "🏢 *Multas:*",
     ...fineTotals.map((item) =>
-      `• ${item.name}: ${formatWhatsAppCurrency(item.total)} (${item.reason})`
+      `- ${item.name}: ${formatWhatsAppCurrency(item.total)} (${item.reason})`
     ),
     "",
     "👥 *Operacionais:*",
     ...operatorCountTotals.map((item) =>
-      `• ${item.name}: ${item.count} registros`
+      `- ${item.name}: ${item.count} registros`
     ),
     "",
     "📍 *Localidades:*",
     ...locationTotals.map((item) =>
-      `• ${item.name}: ${formatWhatsAppCurrency(item.total)} (${item.count} atendimentos)`
+      `- ${item.name}: ${formatWhatsAppCurrency(item.total)} (${item.count} atendimentos)`
     ),
     "",
     "🧾 *Categorias de Despesa:*",
     ...categoryTotals.map((item) =>
-      `• ${item.name}: ${formatWhatsAppCurrency(item.total)} (${item.count} despesas)`
+      `- ${item.name}: ${formatWhatsAppCurrency(item.total)} (${item.count} despesas)`
     ),
     "",
     "📌 *Resumo:*",
-    `• Total Atendimentos: ${attendanceTotal}`
+    `- Total Atendimentos: ${attendanceTotal}`
   ].join("\n");
 }
 
 function csvCell(value) {
-  const text = String(value ?? "");
+  const text = String(value - "");
   return `"${text.replaceAll('"', '""')}"`;
 }
 
@@ -1619,21 +1768,24 @@ function renderWeeklyRecords(records) {
   const container = document.querySelector("#weeklyRecords");
   if (!records.length) {
     container.innerHTML = "<p>Nenhum registro encontrado para esta semana.</p>";
+    updatePagination("weekly", 0, 0, 1, 1);
     return;
   }
 
-  container.innerHTML = records.map((item) => {
+  const pagination = paginateItems(records, weeklyCurrentPage);
+  weeklyCurrentPage = pagination.page;
+  container.innerHTML = pagination.pageItems.map((item) => {
     const isIncome = item.recordType === "income";
     const title = isIncome ? item.clientName : item.description;
     const method = item.transferPerson ? `${item.paymentMethod} - ${item.transferPerson}` : item.paymentMethod;
     const meta = isIncome
-      ? `Entrada • ${item.city} • ${method}`
-      : `Saida • ${item.category} • ${item.city} • ${method}`;
+      ? `Entrada â€¢ ${item.city} â€¢ ${method}`
+      : `Saida â€¢ ${item.category} â€¢ ${item.city} â€¢ ${method}`;
     return `
       <label class="record-check">
         <input type="checkbox" data-weekly-record="${item.id}" ${selectedWeeklyIds.has(item.id) ? "checked" : ""} />
         <span>
-          <strong>${dateFormatter.format(parseLocalDate(item.date))} · ${title} · ${currency.format(item.amount)}</strong>
+          <strong>${dateFormatter.format(parseLocalDate(item.date))} Â· ${title} Â· ${currency.format(item.amount)}</strong>
           <span>${meta}</span>
           <span class="record-inline-actions">
             <button class="table-action-button record-edit-button" type="button" data-edit-type="${item.recordType}" data-edit-id="${item.id}">Editar data e valor</button>
@@ -1643,10 +1795,11 @@ function renderWeeklyRecords(records) {
       </label>
     `;
   }).join("");
+  updatePagination("weekly", records.length, pagination.pageStart, weeklyCurrentPage, pagination.totalPages);
 }
 
 function getDailyWeeklyTotals(start, incomes, expenses) {
-  const dayNames = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"];
+  const dayNames = ["Domingo", "Segunda", "Terca", "Quarta", "Quinta", "Sexta", "Sabado", "Domingo"];
   return Array.from({ length: 8 }, (_, index) => {
     const date = new Date(start);
     date.setDate(start.getDate() + index);
@@ -1744,6 +1897,28 @@ function getAuthSession() {
   } catch {
     return null;
   }
+}
+
+function getCurrentUserThemeKey() {
+  const session = getAuthSession();
+  const userKey = session?.user?.id || session?.user?.email || "local";
+  return `${USER_THEME_KEY_PREFIX}:${userKey}`;
+}
+
+function getStoredUserTheme() {
+  const theme = localStorage.getItem(getCurrentUserThemeKey());
+  return availableThemes.includes(theme) ? theme : null;
+}
+
+function getActiveTheme() {
+  return getStoredUserTheme() || state.theme || defaultTheme;
+}
+
+function saveUserTheme(theme) {
+  if (!availableThemes.includes(theme)) {
+    return;
+  }
+  localStorage.setItem(getCurrentUserThemeKey(), theme);
 }
 
 function setAuthenticated(session) {
@@ -1858,6 +2033,88 @@ async function editMovementDateAndAmount(type, id) {
     return;
   }
 
+  if (type === "income") {
+    const newClientName = window.prompt("Nome da garota:", normalizeAttendantName(item.clientName) || "");
+    if (newClientName === null) return;
+    if (!newClientName.trim()) {
+      showToast("Nome da garota invalido.");
+      return;
+    }
+
+    const newOperatorName = window.prompt("Nome do operacional:", item.operatorName || "");
+    if (newOperatorName === null) return;
+    if (!newOperatorName.trim()) {
+      showToast("Nome do operacional invalido.");
+      return;
+    }
+
+    const newPaymentMethod = window.prompt("Metodo de pagamento:", item.paymentMethod || "");
+    if (newPaymentMethod === null) return;
+    if (!newPaymentMethod.trim()) {
+      showToast("Metodo de pagamento invalido.");
+      return;
+    }
+
+    let newTransferPerson = "";
+    if (paymentNeedsPerson(newPaymentMethod)) {
+      newTransferPerson = window.prompt("Pessoa/conta associada:", item.transferPerson || "");
+      if (newTransferPerson === null) return;
+    }
+
+    const newCity = window.prompt("Localidade:", item.city || "");
+    if (newCity === null) return;
+    if (!newCity.trim()) {
+      showToast("Localidade invalida.");
+      return;
+    }
+
+    const newDescription = window.prompt("Descricao:", item.description || "");
+    if (newDescription === null) return;
+    if (!newDescription.trim()) {
+      showToast("Descricao invalida.");
+      return;
+    }
+
+    item.clientName = normalizeAttendantName(newClientName.trim());
+    item.operatorName = newOperatorName.trim();
+    item.paymentMethod = newPaymentMethod.trim();
+    item.transferPerson = paymentNeedsPerson(item.paymentMethod) ? normalizeAccountPersonName(newTransferPerson.trim()) : "";
+    item.city = newCity.trim();
+    item.description = newDescription.trim();
+    addMissingListValues("operators", [item.operatorName]);
+    addMissingListValues("paymentMethods", [item.paymentMethod]);
+    addMissingListValues("locations", [item.city]);
+  }
+
+  if (type === "expense") {
+    const newDescription = window.prompt("Descricao da despesa:", item.description || "");
+    if (newDescription === null) return;
+    if (!newDescription.trim()) {
+      showToast("Descricao invalida.");
+      return;
+    }
+
+    const newCategory = window.prompt("Categoria:", item.category || "");
+    if (newCategory === null) return;
+    if (!newCategory.trim()) {
+      showToast("Categoria invalida.");
+      return;
+    }
+
+    const newCity = window.prompt("Localidade associada (opcional):", item.city || "Geral");
+    if (newCity === null) return;
+
+    item.description = newDescription.trim();
+    item.category = newCategory.trim();
+    item.city = newCity.trim() || "Geral";
+    item.paymentMethod = item.paymentMethod || "Nao informado";
+    item.transferPerson = "";
+    addMissingListValues("categories", [item.category]);
+    if (item.city !== "Geral") {
+      addMissingListValues("locations", [item.city]);
+    }
+  }
+
   const newDate = window.prompt("Nova data do movimento (AAAA-MM-DD):", item.date);
   if (newDate === null) {
     return;
@@ -1877,21 +2134,9 @@ async function editMovementDateAndAmount(type, id) {
     return;
   }
 
-  if (type === "expense") {
-    const newDescription = window.prompt("Nova descricao da despesa:", item.description || "");
-    if (newDescription === null) {
-      return;
-    }
-    if (!newDescription.trim()) {
-      showToast("Descricao invalida.");
-      return;
-    }
-    item.description = newDescription.trim();
-  }
-
   item.date = newDate;
   item.amount = newAmount;
-  await saveState();
+  await saveState(listName);
   selectedWeeklyIds = null;
   renderDashboard();
   showToast("Movimento atualizado.");
@@ -1972,7 +2217,7 @@ function getImportDuplicateWarning(item) {
 }
 
 async function saveSelectedImportRows() {
-  const selectedRows = importPreviewRecords.filter((item) => item.selected);
+  const selectedRows = importPreviewRecords.filter((item) => item.selected && !item.importOnly);
   if (!selectedRows.length) {
     showToast("Nenhum movimento selecionado.");
     return;
@@ -1981,7 +2226,7 @@ async function saveSelectedImportRows() {
   if (warnings.length && !window.confirm(`${warnings[0]}\nDeseja guardar mesmo assim?`)) {
     return;
   }
-  state.income.push(...selectedRows.map(({ selected, ...item }) => item));
+  state.income.push(...selectedRows.map(({ selected, importOnly, currencyCode, warning, ...item }) => item));
   addMissingListValues("operators", selectedRows.map((item) => item.operatorName).filter((name) => name !== "Nao identificado"));
   addMissingListValues("paymentMethods", selectedRows.map((item) => item.paymentMethod));
   addMissingListValues("locations", selectedRows.map((item) => item.city));
@@ -1992,6 +2237,7 @@ async function saveSelectedImportRows() {
   await saveState("locations");
   setLastImportIds(selectedRows.map((item) => item.id));
   importPreviewRecords = [];
+  importCurrentPage = 1;
   document.querySelector("#whatsappImportText").value = "";
   selectedWeeklyIds = null;
   renderDashboard();
@@ -2037,7 +2283,7 @@ function paymentNeedsPerson(value) {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/\s+/g, "");
-  return normalized === "transferencia" || normalized === "mbway" || normalized === "iban";
+  return normalized && normalized !== "dinheiro";
 }
 
 function normalizeText(value) {
@@ -2060,24 +2306,44 @@ function parseWhatsappDate(value) {
 function stripListPrefix(value) {
   return value
     .replace(/^[\s\u2060]*\d+[\.\)]?\s*/u, "")
-    .replace(/^\s*[-•]\s*/u, "")
+    .replace(/^\s*[-â€¢]\s*/u, "")
     .trim();
 }
 
 function getOperatorFromLine(line) {
-  const found = Object.entries(operatorEmojiMap).find(([emoji]) => line.includes(emoji));
-  return found ? found[1] : "Nao identificado";
+  const found = operatorSymbolMap.find((item) => item.symbols.some((symbol) => line.includes(symbol)));
+  if (found) {
+    return found.name;
+  }
+  const codePoints = [...line].map((char) => char.codePointAt(0));
+  if (codePoints.includes(0x1F608)) return "Erick";
+  if (codePoints.includes(0x1F63B)) return "Xavier";
+  if (codePoints.includes(0x1F333)) return "Tayane";
+  if (codePoints.includes(0x2764) || codePoints.includes(0x2665)) return "Erica";
+  if (codePoints.includes(0x2728)) return "Cachos";
+  if (codePoints.includes(0x1F351)) return "Duda";
+  if (codePoints.includes(0x1F499)) return "Ana";
+  return "Nao identificado";
 }
 
 function getPaymentMethodFromLine(line) {
   const normalized = normalizeText(line);
+  if (/\bpix\b/.test(normalized)) {
+    return "Pix";
+  }
+  if (/\bpay\s*pal\b|\bpaypal\b|\bpay\s*p\b/.test(normalized)) {
+    return "PayPal";
+  }
+  if (/\bwise\b/.test(normalized)) {
+    return "Wise";
+  }
   if (/\brevolut\b/.test(normalized)) {
     return "Revolut";
   }
-  if (/\biban\b|\bibam\b/.test(normalized)) {
+  if (/\biban\b|\bibam\b|\bib\b/.test(normalized)) {
     return "IBAN";
   }
-  if (/\bmbway\b|\bmb\b/.test(normalized)) {
+  if (/\bmbway\b|\bmb\b|\bmb(?=\p{L})/u.test(normalized)) {
     return "MB WAY";
   }
   if (/\bdin\b|\bdinh\b|\bdinheiro\b/.test(normalized)) {
@@ -2087,11 +2353,24 @@ function getPaymentMethodFromLine(line) {
 }
 
 function getTransferPersonFromLine(line, method) {
-  if (!paymentNeedsPerson(method) && method !== "Revolut") {
+  if (!paymentNeedsPerson(method)) {
     return "";
   }
-  const withoutEmoji = line.replace(/[😈😻🌳❤️♥✨🍑💙]/gu, " ");
-  const match = withoutEmoji.match(/\b(?:mbway|mb|iban|ibam|revolut)\b\s+([A-Za-zÀ-ÿ]+)/i);
+  const withoutEmoji = line.replace(/[ðŸ˜ˆðŸ˜»ðŸŒ³â¤ï¸â™¥âœ¨ðŸ‘ðŸ’™]/gu, " ");
+  const match = withoutEmoji.match(/\b(?:mbway|mb|iban|ibam|ib|revolut|wise|pay\s*pal|paypal|pay\s*p)\b\s*([\p{L}]+)/iu);
+  return match ? match[1].trim() : "";
+}
+
+function getImportPersonFromLine(line, method) {
+  if (!paymentNeedsPerson(method) && method !== "Pix") {
+    return "";
+  }
+  const inferredPerson = inferAccountPersonFromDescription(line, method);
+  if (inferredPerson) {
+    return inferredPerson;
+  }
+  const withoutEmoji = line.replace(/[^\p{L}\p{N}\s]/gu, " ");
+  const match = withoutEmoji.match(/\b(?:mbway|mb|iban|ibam|ib|revolut|wise|pay\s*pal|paypal|pay\s*p|pix)\b\s*([\p{L}]+)/iu);
   return match ? match[1].trim() : "";
 }
 
@@ -2111,19 +2390,28 @@ function stripServiceTypePrefix(description = "") {
 }
 
 function inferServiceTypeFromDescription(description = "") {
-  return /\b(chamada|video|vídeo|foto|gp)\b/i.test(description) ? "Online" : "Atendimento";
+  return /\b(chamada|video|foto|gp)\b/i.test(normalizeText(description)) ? "Online" : "Atendimento";
 }
 
 function getAttendantFromLine(line, fallbackAttendant) {
-  const withoutEmoji = line.replace(/[😈😻🌳❤️♥✨🍑💙]/gu, " ");
-  const match = withoutEmoji.match(/\b(?:chamada|video|vídeo|foto|gp)\s+([A-Za-zÀ-ÿ]+)/i);
+  const withoutEmoji = line.replace(/[ðŸ˜ˆðŸ˜»ðŸŒ³â¤ï¸â™¥âœ¨ðŸ‘ðŸ’™]/gu, " ");
+  const match = withoutEmoji.match(/\b(?:chamada|video|foto|gp)\s+([\p{L}]+)/iu);
   return normalizeAttendantName(match ? match[1].trim() : fallbackAttendant);
 }
 
 function normalizeAttendantName(name) {
   const cleanName = String(name || "").trim();
   const key = normalizeText(cleanName);
-  return attendantNameMap[key] || cleanName;
+  if (key.replace(/\s+/g, "") === "agencia" || key.includes("ag") && key.includes("ncia")) {
+    return "Agencia";
+  }
+  if (key.includes("vit") && key.includes("ria")) {
+    return "Vitoria";
+  }
+  if (key === "iban" || key === "ibam" || key === "ib") {
+    return "Agencia";
+  }
+  return attendantNameMap[key] || normalizeAccountPersonName(cleanName);
 }
 
 function getLocationForAttendant(attendant, fallbackCity) {
@@ -2132,9 +2420,20 @@ function getLocationForAttendant(attendant, fallbackCity) {
 }
 
 function getMainAmountFromLine(line) {
-  const mainPart = line.split(/caixinha|caixa|🎁/i)[0];
-  const match = mainPart.match(/(\d+(?:[,.]\d{1,2})?)\s*€?/);
+  const mainPart = line.split(/caixinha|caixa|\u{1F381}/iu)[0];
+  const match = mainPart.match(/(?:R\$|\u20AC)?\s*(\d+(?:[,.]\d{1,2})?)\s*(?:\u20AC)?/iu);
   return match ? Number(match[1].replace(",", ".")) : null;
+}
+
+function isPixLine(line, paymentMethod) {
+  return paymentMethod === "Pix" || /\bpix\b/i.test(normalizeText(line));
+}
+
+function formatImportAmount(item) {
+  if (item.currencyCode === "BRL") {
+    return brlCurrency.format(item.amount);
+  }
+  return currency.format(item.amount);
 }
 
 function isFineLine(line) {
@@ -2152,12 +2451,12 @@ function getFineTargetFromLine(line, fallbackAttendant) {
     .map(normalizeAttendantName)
     .filter((name) => name && normalizeText(name) !== "agencia");
   const found = candidates.find((name) => normalizedLine.includes(normalizeText(name)));
-  return found || normalizeAttendantName(fallbackAttendant) || "Agência";
+  return found || normalizeAttendantName(fallbackAttendant) || "Agencia";
 }
 
 function parseWhatsappImportText(text, attendant, city, importType = "attendance") {
   const records = [];
-  let currentDate = null;
+  let currentDate = toDateInputValue(today);
 
   text.split(/\r?\n/).forEach((rawLine) => {
     const line = rawLine.replace(/\u2060/g, "").trim();
@@ -2169,7 +2468,7 @@ function parseWhatsappImportText(text, attendant, city, importType = "attendance
       currentDate = parsedDate;
       return;
     }
-    if (!currentDate || line.startsWith("*")) {
+    if (line.startsWith("*")) {
       return;
     }
 
@@ -2180,12 +2479,13 @@ function parseWhatsappImportText(text, attendant, city, importType = "attendance
     }
 
     const paymentMethod = getPaymentMethodFromLine(cleanedLine);
+    const pixLine = isPixLine(cleanedLine, paymentMethod);
     const fineLine = importType === "attendance" && isFineLine(cleanedLine);
     const fineTarget = fineLine ? getFineTargetFromLine(cleanedLine, attendant) : "";
-    const operatorName = fineLine ? "Agência" : getOperatorFromLine(cleanedLine);
+    const operatorName = fineLine ? "Agencia" : getOperatorFromLine(cleanedLine);
     const lineAttendant = importType === "call" ? getAttendantFromLine(cleanedLine, "") : attendant;
     const serviceType = importType === "call" ? "Online" : "Atendimento";
-    const finalAttendant = importType === "call" ? lineAttendant || "Agência" : attendant || "Nao identificado";
+    const finalAttendant = importType === "call" ? lineAttendant || "Agencia" : attendant || "Nao identificado";
     const finalCity = importType === "call" ? "Online" : city;
     const record = {
       id: createId(),
@@ -2194,13 +2494,19 @@ function parseWhatsappImportText(text, attendant, city, importType = "attendance
       operatorName,
       date: currentDate,
       paymentMethod,
-      transferPerson: getTransferPersonFromLine(cleanedLine, paymentMethod),
+      transferPerson: getImportPersonFromLine(cleanedLine, paymentMethod),
       city: finalCity,
       amount,
+      currencyCode: pixLine ? "BRL" : "EUR",
+      importOnly: pixLine,
       serviceType,
       description: fineLine ? `[Multa: ${fineTarget}] ${cleanedLine}` : cleanedLine
     };
-    if (importType === "attendance" && !fineLine) {
+    if (pixLine) {
+      record.selected = false;
+      record.warning = "Pix em real: valor apenas para conferencia, nao sera salvo como entrada.";
+    }
+    if (!pixLine && importType === "attendance" && !fineLine) {
       record.warning = getImportDuplicateWarning(record);
     }
     records.push(record);
@@ -2212,27 +2518,34 @@ function parseWhatsappImportText(text, attendant, city, importType = "attendance
 function renderImportPreview() {
   const tbody = document.querySelector("#importPreviewRows");
   const saveButton = document.querySelector("#saveImportRows");
-  const selectedCount = importPreviewRecords.filter((item) => item.selected).length;
+  const selectedCount = importPreviewRecords.filter((item) => item.selected && !item.importOnly).length;
+  const importOnlyCount = importPreviewRecords.filter((item) => item.importOnly).length;
   document.querySelector("#importStatus").textContent = importPreviewRecords.length
-    ? `${importPreviewRecords.length} movimentos detectados. ${selectedCount} selecionados para guardar.`
+    ? `${importPreviewRecords.length} movimentos detectados. ${selectedCount} selecionados para guardar.${importOnlyCount ? ` ${importOnlyCount} Pix em real apenas para conferencia.` : ""}`
     : "Nenhum movimento detectado.";
   saveButton.disabled = selectedCount === 0;
 
-  tbody.innerHTML = importPreviewRecords.length
-    ? importPreviewRecords.map((item, index) => `
+  const pagination = paginateItems(importPreviewRecords, importCurrentPage);
+  importCurrentPage = pagination.page;
+  tbody.innerHTML = pagination.pageItems.length
+    ? pagination.pageItems.map((item, pageIndex) => {
+      const index = pagination.pageStart + pageIndex;
+      return `
       <tr>
-        <td><input class="import-checkbox" type="checkbox" data-import-index="${index}" ${item.selected ? "checked" : ""} /></td>
+        <td><input class="import-checkbox" type="checkbox" data-import-index="${index}" ${item.selected ? "checked" : ""} ${item.importOnly ? "disabled" : ""} /></td>
         <td>${item.date}</td>
         <td>${item.clientName || "-"}</td>
         <td>${item.city || "-"}</td>
         <td>${item.operatorName}</td>
         <td>${item.paymentMethod || "-"}</td>
         <td>${item.transferPerson || "-"}</td>
-        <td class="money-cell">${currency.format(item.amount)}</td>
+        <td class="money-cell">${formatImportAmount(item)}</td>
         <td>${item.description}${item.warning ? `<span class="import-warning">${item.warning}</span>` : ""}</td>
       </tr>
-    `).join("")
+    `;
+    }).join("")
     : `<tr><td colspan="9">Cole o texto do WhatsApp e clique em processar.</td></tr>`;
+  updatePagination("import", importPreviewRecords.length, pagination.pageStart, importCurrentPage, pagination.totalPages);
 }
 
 function updateTransferPersonField(select) {
@@ -2520,14 +2833,19 @@ document.querySelector("#incomeForm").addEventListener("submit", handleIncomeSub
 document.querySelector("#expenseForm").addEventListener("submit", handleExpenseSubmit);
 document.querySelector("#loginForm").addEventListener("submit", handleLogin);
 document.querySelector("#dashboardPeriod").addEventListener("change", () => {
+  recentCurrentPage = 1;
   syncDashboardPeriodControls();
   renderDashboard();
 });
-document.querySelector("#dashboardMonth").addEventListener("change", renderDashboard);
+document.querySelector("#dashboardMonth").addEventListener("change", () => {
+  recentCurrentPage = 1;
+  renderDashboard();
+});
 document.querySelector("#dashboardWeek").addEventListener("change", (event) => {
   if (event.currentTarget.value) {
     event.currentTarget.value = toDateInputValue(startOfWeek(parseLocalDate(event.currentTarget.value)));
   }
+  recentCurrentPage = 1;
   renderDashboard();
 });
 document.querySelector("#logoutButton").addEventListener("click", () => {
@@ -2535,6 +2853,14 @@ document.querySelector("#logoutButton").addEventListener("click", () => {
   showToast("Sessao encerrada.");
 });
 document.querySelector("#refreshAppButton").addEventListener("click", refreshApplication);
+document.querySelector("#recentPrevPage").addEventListener("click", () => {
+  recentCurrentPage = Math.max(1, recentCurrentPage - 1);
+  renderDashboard();
+});
+document.querySelector("#recentNextPage").addEventListener("click", () => {
+  recentCurrentPage += 1;
+  renderDashboard();
+});
 document.querySelector("#recentRows").addEventListener("click", (event) => {
   const button = event.target.closest("[data-edit-id]");
   if (button) {
@@ -2557,6 +2883,14 @@ document.querySelector("#monthlyRows").addEventListener("click", (event) => {
     deleteMovement(deleteButton.dataset.deleteType, deleteButton.dataset.deleteId);
   }
 });
+document.querySelector("#monthlyPrevPage").addEventListener("click", () => {
+  monthlyCurrentPage = Math.max(1, monthlyCurrentPage - 1);
+  renderMonthlyReport();
+});
+document.querySelector("#monthlyNextPage").addEventListener("click", () => {
+  monthlyCurrentPage += 1;
+  renderMonthlyReport();
+});
 document.querySelector("#expenseRecentRows").addEventListener("click", (event) => {
   const button = event.target.closest("[data-edit-id]");
   if (button) {
@@ -2567,6 +2901,14 @@ document.querySelector("#expenseRecentRows").addEventListener("click", (event) =
   if (deleteButton) {
     deleteMovement(deleteButton.dataset.deleteType, deleteButton.dataset.deleteId);
   }
+});
+document.querySelector("#expensePrevPage").addEventListener("click", () => {
+  expenseCurrentPage = Math.max(1, expenseCurrentPage - 1);
+  renderExpenseRecentRows();
+});
+document.querySelector("#expenseNextPage").addEventListener("click", () => {
+  expenseCurrentPage += 1;
+  renderExpenseRecentRows();
 });
 document.querySelector("#incomeRows").addEventListener("click", (event) => {
   const button = event.target.closest("[data-edit-id]");
@@ -2674,11 +3016,13 @@ document.querySelector("#processWhatsappImport").addEventListener("click", () =>
     return;
   }
   importPreviewRecords = parseWhatsappImportText(text, attendant, city, importType);
+  importCurrentPage = 1;
   renderImportPreview();
   showToast(importPreviewRecords.length ? "Texto processado." : "Nenhum movimento encontrado.");
 });
 document.querySelector("#clearWhatsappImport").addEventListener("click", () => {
   importPreviewRecords = [];
+  importCurrentPage = 1;
   document.querySelector("#whatsappImportText").value = "";
   renderImportPreview();
 });
@@ -2687,22 +3031,34 @@ document.querySelector("#importPreviewRows").addEventListener("change", (event) 
   if (!Number.isInteger(index) || !importPreviewRecords[index]) {
     return;
   }
+  if (importPreviewRecords[index].importOnly) {
+    importPreviewRecords[index].selected = false;
+    renderImportPreview();
+    return;
+  }
   importPreviewRecords[index].selected = event.target.checked;
   renderImportPreview();
 });
 document.querySelector("#saveImportRows").addEventListener("click", saveSelectedImportRows);
 document.querySelector("#undoLastImport").addEventListener("click", undoLastImport);
+document.querySelector("#importPrevPage").addEventListener("click", () => {
+  importCurrentPage = Math.max(1, importCurrentPage - 1);
+  renderImportPreview();
+});
+document.querySelector("#importNextPage").addEventListener("click", () => {
+  importCurrentPage += 1;
+  renderImportPreview();
+});
 document.querySelector("#themeOptions").addEventListener("click", (event) => {
   const button = event.target.closest("[data-theme]");
   if (!button) {
     return;
   }
-  state.theme = button.dataset.theme;
-  saveState();
-  applyTheme(state.theme);
+  saveUserTheme(button.dataset.theme);
+  applyTheme(getActiveTheme());
   renderCashFlowChart();
   renderWeeklyReport();
-  showToast("Tema atualizado.");
+  showToast("Tema atualizado para este usuario.");
 });
 document.querySelectorAll(".payment-method").forEach((select) => {
   select.addEventListener("change", () => updateTransferPersonField(select));
@@ -2711,9 +3067,13 @@ document.querySelectorAll(".payment-method").forEach((select) => {
 document.querySelector("#weekStart").addEventListener("change", (event) => {
   event.currentTarget.value = toDateInputValue(startOfWeek(parseLocalDate(event.currentTarget.value)));
   selectedWeeklyIds = null;
+  weeklyCurrentPage = 1;
   renderWeeklyReport();
 });
-document.querySelector("#monthStart").addEventListener("change", renderMonthlyReport);
+document.querySelector("#monthStart").addEventListener("change", () => {
+  monthlyCurrentPage = 1;
+  renderMonthlyReport();
+});
 document.querySelector("#selectWeekRecords").addEventListener("click", () => {
   const { start, end } = getWeekRange();
   selectedWeeklyIds = new Set([
@@ -2747,6 +3107,14 @@ document.querySelector("#weeklyRecords").addEventListener("change", (event) => {
   } else {
     selectedWeeklyIds.delete(recordId);
   }
+  renderWeeklyReport();
+});
+document.querySelector("#weeklyPrevPage").addEventListener("click", () => {
+  weeklyCurrentPage = Math.max(1, weeklyCurrentPage - 1);
+  renderWeeklyReport();
+});
+document.querySelector("#weeklyNextPage").addEventListener("click", () => {
+  weeklyCurrentPage += 1;
   renderWeeklyReport();
 });
 document.querySelector("#weeklyRecords").addEventListener("click", (event) => {
@@ -2798,7 +3166,7 @@ document.querySelector("#todayLabel").textContent = dateFormatter.format(today);
 
 async function initializeApp() {
   setDefaultDates();
-  applyTheme(state.theme);
+  applyTheme(getActiveTheme());
   const authenticated = await verifyAuthSession();
   if (authenticated) {
     await loadRemoteState();
@@ -2807,3 +3175,4 @@ async function initializeApp() {
 }
 
 initializeApp();
+
