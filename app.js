@@ -905,6 +905,27 @@ function setFilterOptions(selector, values, placeholder) {
   }
 }
 
+function setPaymentFilterOptions() {
+  const select = document.querySelector("#incomeFilterPayment");
+  if (!select) {
+    return;
+  }
+  const currentValue = select.value;
+  const methods = [...new Set(state.income.map((item) => item.paymentMethod).filter(Boolean))]
+    .sort((a, b) => String(a).localeCompare(String(b), "pt"));
+  const hasEmptyMethod = state.income.some((item) => !item.paymentMethod);
+  select.innerHTML = [
+    '<option value="">Todos</option>',
+    ...(hasEmptyMethod ? ['<option value="__empty__">Sem metodo</option>'] : []),
+    ...methods.map((value) => `<option>${value}</option>`)
+  ].join("");
+  if (currentValue === "__empty__" && hasEmptyMethod) {
+    select.value = currentValue;
+  } else if (methods.includes(currentValue)) {
+    select.value = currentValue;
+  }
+}
+
 function getIncomeFilterValues() {
   return {
     girl: document.querySelector("#incomeFilterGirl")?.value || "",
@@ -923,14 +944,19 @@ function renderIncomeEntries() {
   setFilterOptions("#incomeFilterGirl", state.income.map((item) => normalizeAttendantName(item.clientName)), "Todas");
   setFilterOptions("#incomeFilterOperator", state.income.map((item) => item.operatorName), "Todos");
   setFilterOptions("#incomeFilterCity", state.income.map((item) => item.city), "Todas");
-  setFilterOptions("#incomeFilterPayment", state.income.map((item) => item.paymentMethod), "Todos");
+  setPaymentFilterOptions();
 
   const filters = getIncomeFilterValues();
   const filteredRows = state.income
     .filter((item) => !filters.girl || normalizeAttendantName(item.clientName) === filters.girl)
     .filter((item) => !filters.operator || item.operatorName === filters.operator)
     .filter((item) => !filters.city || item.city === filters.city)
-    .filter((item) => !filters.payment || item.paymentMethod === filters.payment)
+    .filter((item) => {
+      if (filters.payment === "__empty__") {
+        return !item.paymentMethod;
+      }
+      return !filters.payment || item.paymentMethod === filters.payment;
+    })
     .map((item, index) => ({ ...item, listIndex: index }))
     .sort((a, b) => {
       const dateDiff = parseLocalDate(b.date) - parseLocalDate(a.date);
@@ -950,7 +976,7 @@ function renderIncomeEntries() {
           <td>${normalizeAttendantName(item.clientName) || "-"}</td>
           <td>${item.operatorName || "-"}</td>
           <td>${item.city || "-"}</td>
-          <td>${method || "-"}</td>
+          <td>${method || "Sem metodo"}</td>
           <td>${dateFormatter.format(parseLocalDate(item.date))}</td>
           <td class="money-cell">${currency.format(item.amount)}</td>
           <td>${item.description || "-"}</td>
