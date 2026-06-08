@@ -88,6 +88,11 @@ const brlCurrency = new Intl.NumberFormat("pt-BR", {
   currency: "BRL"
 });
 
+const usdCurrency = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD"
+});
+
 const dateFormatter = new Intl.DateTimeFormat("pt-PT", {
   day: "2-digit",
   month: "long",
@@ -2115,10 +2120,6 @@ async function editMovementDateAndAmount(type, id) {
   if (type === "expense") {
     const newDescription = window.prompt("Descricao da despesa:", item.description || "");
     if (newDescription === null) return;
-    if (!newDescription.trim()) {
-      showToast("Descricao invalida.");
-      return;
-    }
 
     const newCategory = window.prompt("Categoria:", item.category || "");
     if (newCategory === null) return;
@@ -2447,7 +2448,7 @@ function getLocationForAttendant(attendant, fallbackCity) {
 
 function getMainAmountFromLine(line) {
   const mainPart = line.split(/caixinha|caixa|\u{1F381}/iu)[0];
-  const match = mainPart.match(/(?:R\$|\u20AC)?\s*(\d+(?:[,.]\d{1,2})?)\s*(?:\u20AC)?/iu);
+  const match = mainPart.match(/(?:US\$|USD|R\$|\$|\u20AC)?\s*(\d+(?:[,.]\d{1,2})?)\s*(?:USD|\$|\u20AC)?/iu);
   return match ? Number(match[1].replace(",", ".")) : null;
 }
 
@@ -2455,9 +2456,16 @@ function isPixLine(line, paymentMethod) {
   return paymentMethod === "Pix" || /\bpix\b/i.test(normalizeText(line));
 }
 
+function isUsdLine(line) {
+  return /(?:\bUSD\b|US\$|\$)/i.test(line) && !/R\$/i.test(line);
+}
+
 function formatImportAmount(item) {
   if (item.currencyCode === "BRL") {
     return brlCurrency.format(item.amount);
+  }
+  if (item.currencyCode === "USD") {
+    return usdCurrency.format(item.amount);
   }
   return currency.format(item.amount);
 }
@@ -2506,6 +2514,8 @@ function parseWhatsappImportText(text, attendant, city, importType = "attendance
 
     const paymentMethod = getPaymentMethodFromLine(cleanedLine);
     const pixLine = isPixLine(cleanedLine, paymentMethod);
+    const usdLine = isUsdLine(cleanedLine);
+    const importOnlyLine = pixLine || usdLine;
     const fineLine = importType === "attendance" && isFineLine(cleanedLine);
     const fineTarget = fineLine ? getFineTargetFromLine(cleanedLine, attendant) : "";
     const operatorName = fineLine ? "Agencia" : getOperatorFromLine(cleanedLine);
@@ -2523,16 +2533,18 @@ function parseWhatsappImportText(text, attendant, city, importType = "attendance
       transferPerson: getImportPersonFromLine(cleanedLine, paymentMethod),
       city: finalCity,
       amount,
-      currencyCode: pixLine ? "BRL" : "EUR",
-      importOnly: pixLine,
+      currencyCode: pixLine ? "BRL" : usdLine ? "USD" : "EUR",
+      importOnly: importOnlyLine,
       serviceType,
       description: fineLine ? `[Multa: ${fineTarget}] ${cleanedLine}` : cleanedLine
     };
-    if (pixLine) {
+    if (importOnlyLine) {
       record.selected = false;
-      record.warning = "Pix em real: valor apenas para conferencia, nao sera salvo como entrada.";
+      record.warning = pixLine
+        ? "Pix em real: valor apenas para conferencia, nao sera salvo como entrada."
+        : "Valor em dolar: apenas para conferencia, nao sera salvo como entrada.";
     }
-    if (!pixLine && importType === "attendance" && !fineLine) {
+    if (!importOnlyLine && importType === "attendance" && !fineLine) {
       record.warning = getImportDuplicateWarning(record);
     }
     records.push(record);
@@ -2545,9 +2557,14 @@ function renderImportPreview() {
   const tbody = document.querySelector("#importPreviewRows");
   const saveButton = document.querySelector("#saveImportRows");
   const selectedCount = importPreviewRecords.filter((item) => item.selected && !item.importOnly).length;
-  const importOnlyCount = importPreviewRecords.filter((item) => item.importOnly).length;
+  const brlOnlyCount = importPreviewRecords.filter((item) => item.currencyCode === "BRL").length;
+  const usdOnlyCount = importPreviewRecords.filter((item) => item.currencyCode === "USD").length;
+  const separatedCurrencyText = [
+    brlOnlyCount ? `${brlOnlyCount} Pix em real apenas para conferencia.` : "",
+    usdOnlyCount ? `${usdOnlyCount} valor em dolar apenas para conferencia.` : ""
+  ].filter(Boolean).join(" ");
   document.querySelector("#importStatus").textContent = importPreviewRecords.length
-    ? `${importPreviewRecords.length} movimentos detectados. ${selectedCount} selecionados para guardar.${importOnlyCount ? ` ${importOnlyCount} Pix em real apenas para conferencia.` : ""}`
+    ? `${importPreviewRecords.length} movimentos detectados. ${selectedCount} selecionados para guardar.${separatedCurrencyText ? ` ${separatedCurrencyText}` : ""}`
     : "Nenhum movimento detectado.";
   saveButton.disabled = selectedCount === 0;
 
@@ -2808,6 +2825,7 @@ function handleExpenseSubmit(event) {
   state.expenses.push({
     id: createId(),
     ...data,
+    description: data.description.trim(),
     paymentMethod: "Nao informado",
     transferPerson: "",
     city: data.city || "Geral",
