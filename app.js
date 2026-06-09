@@ -365,6 +365,23 @@ async function replaceTable(tableName, rows) {
   });
 }
 
+async function insertRowsSafely(tableName, rows) {
+  try {
+    await supabaseRequest(tableName, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Prefer: "resolution=merge-duplicates,return=minimal"
+      },
+      body: JSON.stringify(rows)
+    });
+    return true;
+  } catch (error) {
+    console.error(`Falha ao inserir registros em ${tableName} no Supabase.`, error);
+    return false;
+  }
+}
+
 async function saveTableSafely(name, rows) {
   try {
     await replaceTable(name, rows);
@@ -2293,33 +2310,26 @@ async function saveSelectedImportRows() {
   if (warnings.length && !window.confirm(`${warnings[0]}\nDeseja guardar mesmo assim?`)) {
     return;
   }
-  const previousSnapshot = {
-    income: [...state.income],
-    operators: [...state.operators],
-    paymentMethods: [...state.paymentMethods],
-    locations: [...state.locations]
-  };
-  state.income.push(...selectedRows.map(({ selected, importOnly, currencyCode, warning, ...item }) => item));
+  const rowsToSave = selectedRows.map(({ selected, importOnly, currencyCode, warning, ...item }) => item);
+  const incomeSaved = isSupabaseConfigured()
+    ? await insertRowsSafely("entradas", rowsToSave.map(incomeToRow))
+    : false;
+
+  if (isSupabaseConfigured() && !incomeSaved) {
+    showToast("Erro ao gravar entradas no Supabase. Nada foi guardado.");
+    return;
+  }
+
+  state.income.push(...rowsToSave);
   addMissingListValues("operators", selectedRows.map((item) => item.operatorName).filter((name) => name !== "Nao identificado"));
   addMissingListValues("paymentMethods", selectedRows.map((item) => item.paymentMethod));
   addMissingListValues("locations", selectedRows.map((item) => item.city));
 
-  const incomeSaved = await saveState("income");
+  const localIncomeSaved = isSupabaseConfigured() ? true : await saveState("income");
   const operatorsSaved = await saveState("operators");
   const paymentMethodsSaved = await saveState("paymentMethods");
   const locationsSaved = await saveState("locations");
-  const allSaved = incomeSaved && operatorsSaved && paymentMethodsSaved && locationsSaved;
-  if (isSupabaseConfigured() && !allSaved) {
-    state.income = previousSnapshot.income;
-    state.operators = previousSnapshot.operators;
-    state.paymentMethods = previousSnapshot.paymentMethods;
-    state.locations = previousSnapshot.locations;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    selectedWeeklyIds = null;
-    renderDashboard();
-    showToast("Nao foi possivel guardar no Supabase. Importacao mantida para tentar novamente.");
-    return;
-  }
+  const allSaved = localIncomeSaved && operatorsSaved && paymentMethodsSaved && locationsSaved;
   setLastImportIds(selectedRows.map((item) => item.id));
   importPreviewRecords = [];
   importCurrentPage = 1;
