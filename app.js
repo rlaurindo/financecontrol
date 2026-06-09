@@ -2234,13 +2234,44 @@ function isAttendanceIncome(item) {
   return (item.serviceType || inferServiceTypeFromDescription(item.description)) === "Atendimento";
 }
 
+function getIncomeServiceType(item) {
+  return item.serviceType || inferServiceTypeFromDescription(item.description);
+}
+
+function getComparableText(value) {
+  return normalizeText(value).replace(/\s+/g, " ").trim();
+}
+
 function getImportDuplicateWarning(item) {
-  const exists = state.income.some((income) =>
-    isAttendanceIncome(income) &&
-    income.date === item.date &&
-    normalizeAttendantName(income.clientName).toLowerCase() === normalizeAttendantName(item.clientName).toLowerCase()
-  );
-  return exists ? `Ja existe registro para essa garota na data ${formatDateDash(item.date)}.` : "";
+  const itemServiceType = getIncomeServiceType(item);
+  const itemGirl = getComparableText(normalizeAttendantName(item.clientName));
+  const exists = state.income.some((income) => {
+    if (income.date !== item.date || getIncomeServiceType(income) !== itemServiceType) {
+      return false;
+    }
+
+    const incomeGirl = getComparableText(normalizeAttendantName(income.clientName));
+    if (incomeGirl !== itemGirl) {
+      return false;
+    }
+
+    if (itemServiceType === "Atendimento") {
+      return true;
+    }
+
+    return Number(income.amount || 0) === Number(item.amount || 0) &&
+      getComparableText(income.paymentMethod) === getComparableText(item.paymentMethod) &&
+      getComparableText(income.transferPerson) === getComparableText(item.transferPerson) &&
+      getComparableText(income.description) === getComparableText(item.description);
+  });
+
+  if (!exists) {
+    return "";
+  }
+
+  return itemServiceType === "Atendimento"
+    ? `Ja existe registro para essa garota na data ${formatDateDash(item.date)}.`
+    : `Ja existe registro online semelhante para essa garota na data ${formatDateDash(item.date)}.`;
 }
 
 async function saveSelectedImportRows() {
@@ -2268,7 +2299,7 @@ async function saveSelectedImportRows() {
   document.querySelector("#whatsappImportText").value = "";
   selectedWeeklyIds = null;
   renderDashboard();
-  showToast(incomeSaved ? "Importacao guardada." : "Importacao guardada apenas neste navegador.");
+  showToast(incomeSaved ? "Importacao guardada no Supabase." : "Importacao guardada apenas neste navegador.");
 }
 
 async function undoLastImport() {
@@ -2321,13 +2352,16 @@ function normalizeText(value) {
 }
 
 function parseWhatsappDate(value) {
-  const match = value.trim().match(/^(\d{1,2})\/(\d{1,2})$/);
+  const match = value.trim().match(/^(?:dia\s*)?(\d{1,2})[\/-](\d{1,2})(?:[\/-](\d{2,4}))?$/i);
   if (!match) {
     return null;
   }
   const day = match[1].padStart(2, "0");
   const month = match[2].padStart(2, "0");
-  return `${currentYear}-${month}-${day}`;
+  const parsedYear = match[3]
+    ? Number(match[3].length === 2 ? `20${match[3]}` : match[3])
+    : currentYear;
+  return `${parsedYear}-${month}-${day}`;
 }
 
 function stripListPrefix(value) {
@@ -2544,7 +2578,7 @@ function parseWhatsappImportText(text, attendant, city, importType = "attendance
         ? "Pix em real: valor apenas para conferencia, nao sera salvo como entrada."
         : "Valor em dolar: apenas para conferencia, nao sera salvo como entrada.";
     }
-    if (!importOnlyLine && importType === "attendance" && !fineLine) {
+    if (!importOnlyLine && !fineLine) {
       record.warning = getImportDuplicateWarning(record);
     }
     records.push(record);
