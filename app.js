@@ -309,7 +309,18 @@ function rowToExpense(row) {
 
 async function loadSupabaseTable(path, fallback = []) {
   try {
-    return await supabaseRequest(path);
+    const pageSize = 1000;
+    const rows = [];
+    let offset = 0;
+    while (true) {
+      const separator = path.includes("?") ? "&" : "?";
+      const batch = await supabaseRequest(`${path}${separator}limit=${pageSize}&offset=${offset}`);
+      rows.push(...batch);
+      if (batch.length < pageSize) {
+        return rows;
+      }
+      offset += pageSize;
+    }
   } catch (error) {
     console.error(`Falha ao carregar ${path} do Supabase.`, error);
     return fallback;
@@ -374,6 +385,20 @@ async function insertRowsSafely(tableName, rows) {
     return true;
   } catch (error) {
     console.error(`Falha ao inserir registros em ${tableName} no Supabase.`, error);
+    return false;
+  }
+}
+
+async function verifyRowsVisible(tableName, ids) {
+  if (!ids.length) {
+    return true;
+  }
+  try {
+    const encodedIds = ids.map((id) => `"${id}"`).join(",");
+    const rows = await supabaseRequest(`${tableName}?id=in.(${encodedIds})&select=id`);
+    return rows.length === ids.length;
+  } catch (error) {
+    console.error(`Falha ao verificar registros em ${tableName} no Supabase.`, error);
     return false;
   }
 }
@@ -1928,7 +1953,18 @@ function showToast(message) {
   const toast = document.querySelector("#toast");
   toast.textContent = message;
   toast.classList.add("show");
-  setTimeout(() => toast.classList.remove("show"), 2200);
+  setTimeout(() => toast.classList.remove("show"), 8000);
+}
+
+async function getJuneApiDiagnostic() {
+  try {
+    const rows = await supabaseRequest("entradas?select=id,amount&entry_date=gte.2026-06-01&entry_date=lte.2026-06-30");
+    const total = sum(rows.map((row) => ({ amount: row.amount })));
+    return `API junho: ${rows.length} registros / ${currency.format(total)}`;
+  } catch (error) {
+    console.error("Falha no diagnostico de junho.", error);
+    return "API junho: erro ao consultar";
+  }
 }
 
 function isAuthenticated() {
@@ -1987,7 +2023,8 @@ async function refreshApplication() {
     button.disabled = false;
     button.textContent = "Atualizar";
   }
-  showToast(`${state.income.length} entradas carregadas do Supabase.`);
+  const diagnostic = isSupabaseConfigured() ? await getJuneApiDiagnostic() : "Supabase nao configurado";
+  showToast(`${state.income.length} entradas carregadas. ${diagnostic}`);
 }
 
 async function verifyAuthSession() {
@@ -2313,6 +2350,10 @@ async function saveSelectedImportRows() {
 
   if (isSupabaseConfigured() && !incomeSaved) {
     showToast("Erro ao gravar entradas no Supabase. Nada foi guardado.");
+    return;
+  }
+  if (isSupabaseConfigured() && !await verifyRowsVisible("entradas", rowsToSave.map((item) => item.id))) {
+    showToast("Supabase gravou, mas a API nao devolveu os registros. Verifique as politicas RLS.");
     return;
   }
 
@@ -2867,31 +2908,47 @@ function formToObject(form) {
   return Object.fromEntries(new FormData(form).entries());
 }
 
-function handleIncomeSubmit(event) {
+async function handleIncomeSubmit(event) {
   event.preventDefault();
   const form = event.currentTarget;
   const data = formToObject(form);
   if (!paymentNeedsPerson(data.paymentMethod)) {
     data.transferPerson = "";
   }
-  state.income.push({
+  const record = {
     id: createId(),
     ...data,
     amount: Number(data.amount)
-  });
-  saveState();
+  };
+  const saved = isSupabaseConfigured()
+    ? await insertRowsSafely("entradas", [incomeToRow(record)])
+    : true;
+  if (!saved) {
+    showToast("Erro ao gravar entrada no Supabase. Nada foi guardado.");
+    return;
+  }
+  if (isSupabaseConfigured() && !await verifyRowsVisible("entradas", [record.id])) {
+    showToast("Entrada nao ficou visivel pela API. Verifique as politicas RLS.");
+    return;
+  }
+  state.income.push(record);
+  if (isSupabaseConfigured()) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } else {
+    await saveState("income");
+  }
   form.reset();
   setDefaultDates();
   document.querySelectorAll(".payment-method").forEach(updateTransferPersonField);
   renderDashboard();
-  showToast("Entrada registrada com sucesso.");
+  showToast("Entrada gravada no Supabase.");
 }
 
-function handleExpenseSubmit(event) {
+async function handleExpenseSubmit(event) {
   event.preventDefault();
   const form = event.currentTarget;
   const data = formToObject(form);
-  state.expenses.push({
+  const record = {
     id: createId(),
     ...data,
     description: data.description.trim(),
@@ -2899,13 +2956,29 @@ function handleExpenseSubmit(event) {
     transferPerson: "",
     city: data.city || "Geral",
     amount: Number(data.amount)
-  });
-  saveState();
+  };
+  const saved = isSupabaseConfigured()
+    ? await insertRowsSafely("saidas", [expenseToRow(record)])
+    : true;
+  if (!saved) {
+    showToast("Erro ao gravar saida no Supabase. Nada foi guardado.");
+    return;
+  }
+  if (isSupabaseConfigured() && !await verifyRowsVisible("saidas", [record.id])) {
+    showToast("Saida nao ficou visivel pela API. Verifique as politicas RLS.");
+    return;
+  }
+  state.expenses.push(record);
+  if (isSupabaseConfigured()) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } else {
+    await saveState("expenses");
+  }
   form.reset();
   setDefaultDates();
   document.querySelectorAll(".payment-method").forEach(updateTransferPersonField);
   renderDashboard();
-  showToast("Saida registrada com sucesso.");
+  showToast("Saida gravada no Supabase.");
 }
 
 function setDefaultDates() {
