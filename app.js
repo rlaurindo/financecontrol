@@ -2275,11 +2275,20 @@ function getImportDuplicateWarning(item) {
 }
 
 async function saveSelectedImportRows() {
-  const selectedRows = importPreviewRecords.filter((item) => item.selected && !item.importOnly);
+  let selectedRows = importPreviewRecords.filter((item) => item.selected && !item.importOnly);
   if (!selectedRows.length) {
     showToast("Nenhum movimento selecionado.");
     return;
   }
+
+  if (isSupabaseConfigured()) {
+    await loadRemoteState();
+    selectedRows = selectedRows.map((item) => ({
+      ...item,
+      warning: getImportDuplicateWarning(item)
+    }));
+  }
+
   const warnings = selectedRows.map((item) => item.warning).filter(Boolean);
   if (warnings.length && !window.confirm(`${warnings[0]}\nDeseja guardar mesmo assim?`)) {
     return;
@@ -2299,7 +2308,9 @@ async function saveSelectedImportRows() {
   document.querySelector("#whatsappImportText").value = "";
   selectedWeeklyIds = null;
   renderDashboard();
-  showToast(incomeSaved ? "Importacao guardada no Supabase." : "Importacao guardada apenas neste navegador.");
+  showToast(incomeSaved
+    ? `${selectedRows.length} registros guardados no Supabase.`
+    : "Importacao guardada apenas neste navegador.");
 }
 
 async function undoLastImport() {
