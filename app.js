@@ -2293,22 +2293,40 @@ async function saveSelectedImportRows() {
   if (warnings.length && !window.confirm(`${warnings[0]}\nDeseja guardar mesmo assim?`)) {
     return;
   }
+  const previousSnapshot = {
+    income: [...state.income],
+    operators: [...state.operators],
+    paymentMethods: [...state.paymentMethods],
+    locations: [...state.locations]
+  };
   state.income.push(...selectedRows.map(({ selected, importOnly, currencyCode, warning, ...item }) => item));
   addMissingListValues("operators", selectedRows.map((item) => item.operatorName).filter((name) => name !== "Nao identificado"));
   addMissingListValues("paymentMethods", selectedRows.map((item) => item.paymentMethod));
   addMissingListValues("locations", selectedRows.map((item) => item.city));
 
   const incomeSaved = await saveState("income");
-  await saveState("operators");
-  await saveState("paymentMethods");
-  await saveState("locations");
+  const operatorsSaved = await saveState("operators");
+  const paymentMethodsSaved = await saveState("paymentMethods");
+  const locationsSaved = await saveState("locations");
+  const allSaved = incomeSaved && operatorsSaved && paymentMethodsSaved && locationsSaved;
+  if (isSupabaseConfigured() && !allSaved) {
+    state.income = previousSnapshot.income;
+    state.operators = previousSnapshot.operators;
+    state.paymentMethods = previousSnapshot.paymentMethods;
+    state.locations = previousSnapshot.locations;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    selectedWeeklyIds = null;
+    renderDashboard();
+    showToast("Nao foi possivel guardar no Supabase. Importacao mantida para tentar novamente.");
+    return;
+  }
   setLastImportIds(selectedRows.map((item) => item.id));
   importPreviewRecords = [];
   importCurrentPage = 1;
   document.querySelector("#whatsappImportText").value = "";
   selectedWeeklyIds = null;
   renderDashboard();
-  showToast(incomeSaved
+  showToast(allSaved
     ? `${selectedRows.length} registros guardados no Supabase.`
     : "Importacao guardada apenas neste navegador.");
 }
