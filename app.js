@@ -307,44 +307,40 @@ function rowToExpense(row) {
   };
 }
 
-async function loadNormalizedSupabaseState() {
+async function loadSupabaseTable(path, fallback = []) {
   try {
-    const [incomeRows, expenseRows, categoryRows, locationRows, operatorRows, paymentMethodRows, settingsRows] = await Promise.all([
-      supabaseRequest("entradas?select=*&order=entry_date.asc"),
-      supabaseRequest("saidas?select=*&order=payment_date.asc"),
-      supabaseRequest("categorias?select=*&order=name.asc"),
-      supabaseRequest("localidades?select=*&order=name.asc"),
-      supabaseRequest("operacionais?select=*&order=name.asc"),
-      supabaseRequest("metodos_pagamento?select=*&order=name.asc"),
-      supabaseRequest("configuracoes?id=eq.1&select=*")
-    ]);
+    return await supabaseRequest(path);
+  } catch (error) {
+    console.error(`Falha ao carregar ${path} do Supabase.`, error);
+    return fallback;
+  }
+}
 
-    if (!settingsRows.length && !incomeRows.length && !expenseRows.length && !categoryRows.length && !locationRows.length && !operatorRows.length && !paymentMethodRows.length) {
-      return {
-        income: [],
-        expenses: [],
-        categories: [],
-        locations: [],
-        operators: [],
-        paymentMethods: [],
-        theme: state.theme,
-        auth: state.auth
-      };
-    }
+async function loadNormalizedSupabaseState() {
+  const [incomeRows, expenseRows, categoryRows, locationRows, operatorRows, paymentMethodRows, settingsRows] = await Promise.all([
+    loadSupabaseTable("entradas?select=*&order=entry_date.asc", null),
+    loadSupabaseTable("saidas?select=*&order=payment_date.asc", state.expenses.map(expenseToRow)),
+    loadSupabaseTable("categorias?select=*&order=name.asc", state.categories.map((name) => ({ name }))),
+    loadSupabaseTable("localidades?select=*&order=name.asc", state.locations.map((name) => ({ name }))),
+    loadSupabaseTable("operacionais?select=*&order=name.asc", state.operators.map((name) => ({ name }))),
+    loadSupabaseTable("metodos_pagamento?select=*&order=name.asc", state.paymentMethods.map((name) => ({ name }))),
+    loadSupabaseTable("configuracoes?id=eq.1&select=*", [])
+  ]);
 
-    return {
-      income: incomeRows.map(rowToIncome),
-      expenses: expenseRows.map(rowToExpense),
-      categories: categoryRows.map((row) => row.name),
-      locations: locationRows.map((row) => row.name),
-      operators: operatorRows.map((row) => row.name),
-      paymentMethods: paymentMethodRows.map((row) => row.name),
-      theme: settingsRows[0]?.theme || state.theme,
-      auth: settingsRows[0]?.auth || state.auth
-    };
-  } catch {
+  if (!incomeRows) {
     return null;
   }
+
+  return {
+    income: incomeRows.map(rowToIncome),
+    expenses: expenseRows.map(rowToExpense),
+    categories: categoryRows.map((row) => row.name),
+    locations: locationRows.map((row) => row.name),
+    operators: operatorRows.map((row) => row.name),
+    paymentMethods: paymentMethodRows.map((row) => row.name),
+    theme: settingsRows[0]?.theme || state.theme,
+    auth: settingsRows[0]?.auth || state.auth
+  };
 }
 
 async function replaceTable(tableName, rows) {
@@ -1991,7 +1987,7 @@ async function refreshApplication() {
     button.disabled = false;
     button.textContent = "Atualizar";
   }
-  showToast("Valores atualizados.");
+  showToast(`${state.income.length} entradas carregadas do Supabase.`);
 }
 
 async function verifyAuthSession() {
