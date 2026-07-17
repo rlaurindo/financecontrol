@@ -354,24 +354,6 @@ async function loadNormalizedSupabaseState() {
   };
 }
 
-async function replaceTable(tableName, rows) {
-  await supabaseRequest(`${tableName}?id=neq.__never__`, {
-    method: "DELETE",
-    headers: { Prefer: "return=minimal" }
-  });
-  if (!rows.length) {
-    return;
-  }
-  await supabaseRequest(tableName, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Prefer: "resolution=merge-duplicates,return=minimal"
-    },
-    body: JSON.stringify(rows)
-  });
-}
-
 async function insertRowsSafely(tableName, rows) {
   try {
     await supabaseRequest(tableName, {
@@ -403,9 +385,19 @@ async function verifyRowsVisible(tableName, ids) {
   }
 }
 
-async function saveTableSafely(name, rows) {
+async function upsertTableSafely(name, rows) {
+  if (!rows.length) {
+    return true;
+  }
   try {
-    await replaceTable(name, rows);
+    await supabaseRequest(name, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Prefer: "resolution=merge-duplicates,return=minimal"
+      },
+      body: JSON.stringify(rows)
+    });
     return true;
   } catch (error) {
     console.error(`Falha ao salvar tabela ${name} no Supabase.`, error);
@@ -436,12 +428,12 @@ async function saveSettingsSafely() {
 
 async function saveNormalizedSupabaseState(scope = "all") {
   const tasks = {
-    income: () => saveTableSafely("entradas", state.income.map(incomeToRow)),
-    expenses: () => saveTableSafely("saidas", state.expenses.map(expenseToRow)),
-    categories: () => saveTableSafely("categorias", state.categories.map((name) => ({ id: toSlugId("cat", name), name }))),
-    locations: () => saveTableSafely("localidades", state.locations.map((name) => ({ id: toSlugId("loc", name), name }))),
-    operators: () => saveTableSafely("operacionais", state.operators.map((name) => ({ id: toSlugId("op", name), name }))),
-    paymentMethods: () => saveTableSafely("metodos_pagamento", state.paymentMethods.map((name) => ({ id: toSlugId("pay", name), name }))),
+    income: () => upsertTableSafely("entradas", state.income.map(incomeToRow)),
+    expenses: () => upsertTableSafely("saidas", state.expenses.map(expenseToRow)),
+    categories: () => upsertTableSafely("categorias", state.categories.map((name) => ({ id: toSlugId("cat", name), name }))),
+    locations: () => upsertTableSafely("localidades", state.locations.map((name) => ({ id: toSlugId("loc", name), name }))),
+    operators: () => upsertTableSafely("operacionais", state.operators.map((name) => ({ id: toSlugId("op", name), name }))),
+    paymentMethods: () => upsertTableSafely("metodos_pagamento", state.paymentMethods.map((name) => ({ id: toSlugId("pay", name), name }))),
     settings: () => saveSettingsSafely()
   };
 
@@ -888,7 +880,6 @@ function renderRecentRows(incomes = state.income, expenses = state.expenses) {
         <td>
           <div class="table-actions">
             <button class="table-action-button" type="button" data-edit-type="${item.recordType}" data-edit-id="${item.id}">Editar</button>
-            <button class="table-action-button danger-action-button" type="button" data-delete-type="${item.recordType}" data-delete-id="${item.id}">Apagar</button>
           </div>
         </td>
       </tr>
@@ -923,7 +914,6 @@ function renderExpenseRecentRows() {
         <td>
           <div class="table-actions">
             <button class="table-action-button" type="button" data-edit-type="expense" data-edit-id="${item.id}">Editar</button>
-            <button class="table-action-button danger-action-button" type="button" data-delete-type="expense" data-delete-id="${item.id}">Apagar</button>
           </div>
         </td>
       </tr>
@@ -1026,7 +1016,6 @@ function renderIncomeEntries() {
           <td>
             <div class="table-actions">
               <button class="table-action-button" type="button" data-edit-type="income" data-edit-id="${item.id}">Editar</button>
-              <button class="table-action-button danger-action-button" type="button" data-delete-type="income" data-delete-id="${item.id}">Apagar</button>
             </div>
           </td>
         </tr>
@@ -1675,7 +1664,6 @@ function renderMonthlyReport() {
           <td>
             <div class="table-actions">
               <button class="table-action-button" type="button" data-edit-type="${item.recordType}" data-edit-id="${item.id}">Editar</button>
-              <button class="table-action-button danger-action-button" type="button" data-delete-type="${item.recordType}" data-delete-id="${item.id}">Apagar</button>
             </div>
           </td>
         </tr>
@@ -1858,7 +1846,6 @@ function renderWeeklyRecords(records) {
           <span>${meta}</span>
           <span class="record-inline-actions">
             <button class="table-action-button record-edit-button" type="button" data-edit-type="${item.recordType}" data-edit-id="${item.id}">Editar data e valor</button>
-            <button class="table-action-button danger-action-button record-edit-button" type="button" data-delete-type="${item.recordType}" data-delete-id="${item.id}">Apagar</button>
           </span>
         </span>
       </label>
@@ -2220,21 +2207,7 @@ async function editMovementDateAndAmount(type, id) {
 }
 
 async function deleteMovement(type, id) {
-  const listName = type === "income" ? "income" : "expenses";
-  const item = state[listName].find((record) => record.id === id);
-  if (!item) {
-    showToast("Movimento nao encontrado.");
-    return;
-  }
-  const label = type === "income" ? "entrada" : "saida";
-  if (!window.confirm(`Apagar esta ${label} de ${currency.format(item.amount)}?`)) {
-    return;
-  }
-  state[listName] = state[listName].filter((record) => record.id !== id);
-  await saveState(listName);
-  selectedWeeklyIds = null;
-  renderDashboard();
-  showToast("Movimento apagado.");
+  showToast("Apagar movimentos foi desativado por seguranca. Use backup/SQL revisado para remover dados.");
 }
 
 function addMissingListValues(listName, values) {
@@ -2268,7 +2241,8 @@ function updateUndoImportButton() {
   if (!button) {
     return;
   }
-  button.disabled = getLastImportIds().length === 0;
+  button.disabled = true;
+  button.title = "Desativado por seguranca para evitar remocao acidental de entradas.";
 }
 
 function formatDateDash(value) {
@@ -2379,26 +2353,7 @@ async function saveSelectedImportRows() {
 }
 
 async function undoLastImport() {
-  const ids = getLastImportIds();
-  if (!ids.length) {
-    showToast("Nenhuma importacao para desfazer.");
-    return;
-  }
-  const count = state.income.filter((item) => ids.includes(item.id)).length;
-  if (!count) {
-    setLastImportIds([]);
-    showToast("Importacao anterior ja nao foi encontrada.");
-    return;
-  }
-  if (!window.confirm(`Desfazer a ultima importacao e apagar ${count} registros?`)) {
-    return;
-  }
-  state.income = state.income.filter((item) => !ids.includes(item.id));
-  await saveState("income");
-  setLastImportIds([]);
-  selectedWeeklyIds = null;
-  renderDashboard();
-  showToast("Ultima importacao desfeita.");
+  showToast("Desfazer importacao foi desativado por seguranca. Remocoes agora devem ser feitas por SQL revisado.");
 }
 
 function getAdminSaveMessage(result, label) {
