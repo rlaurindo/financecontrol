@@ -52,7 +52,7 @@
           <div>
             <p class="eyebrow">Gestao financeira</p>
             <h1>Controle Integrado de Maio</h1>
-            <small id="appVersionLabel">versao 20260717-sem-delete-massa</small>
+            <small id="appVersionLabel">versao 20260721-filtro-mbway-sem-pessoa</small>
           </div>
           <div class="date-chip">
             <span>Data</span>
@@ -651,6 +651,14 @@
                 Metodo de pagamento
                 <select id="incomeFilterPayment"></select>
               </label>
+              <label>
+                Pessoa MB WAY
+                <select id="incomeFilterMbWayPerson">
+                  <option value="">Todas</option>
+                  <option value="missing">MB WAY sem pessoa</option>
+                  <option value="filled">MB WAY com pessoa</option>
+                </select>
+              </label>
             </div>
             <div class="table-wrap">
               <table>
@@ -749,6 +757,6 @@
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
     <script src="supabase-config.js?v=20260526-paginacao-tema"></script>
-    <script src="app.js?v=20260717-sem-delete-massa"></script>
+    <script src="app.js?v=20260721-filtro-mbway-sem-pessoa"></script>
   </body>
 </html>

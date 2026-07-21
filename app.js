@@ -964,7 +964,8 @@ function getIncomeFilterValues() {
     girl: document.querySelector("#incomeFilterGirl")?.value || "",
     operator: document.querySelector("#incomeFilterOperator")?.value || "",
     city: document.querySelector("#incomeFilterCity")?.value || "",
-    payment: document.querySelector("#incomeFilterPayment")?.value || ""
+    payment: document.querySelector("#incomeFilterPayment")?.value || "",
+    mbWayPerson: document.querySelector("#incomeFilterMbWayPerson")?.value || ""
   };
 }
 
@@ -989,6 +990,20 @@ function renderIncomeEntries() {
         return !item.paymentMethod;
       }
       return !filters.payment || item.paymentMethod === filters.payment;
+    })
+    .filter((item) => {
+      if (!filters.mbWayPerson) {
+        return true;
+      }
+      const isMbWay = normalizeText(item.paymentMethod).replace(/\s+/g, "") === "mbway";
+      const hasPerson = Boolean(getResolvedPaymentPerson(item));
+      if (filters.mbWayPerson === "missing") {
+        return isMbWay && !hasPerson;
+      }
+      if (filters.mbWayPerson === "filled") {
+        return isMbWay && hasPerson;
+      }
+      return true;
     })
     .map((item, index) => ({ ...item, listIndex: index }))
     .sort((a, b) => {
@@ -1208,6 +1223,7 @@ function renderWeeklyReport() {
   const dailyTotals = getDailyWeeklyTotals(start, weekIncome, weekExpenses);
   const paymentTotals = getPaymentMethodTotals(weekIncome, weekExpenses);
   const accountPaymentTotals = getAccountPaymentTotals(weekIncome);
+  const mbWayAccountTotals = getMbWayAccountTotals(weekIncome);
   const presentialIncome = getIncomesByServiceType(weekIncome, "Atendimento");
   const onlineIncome = getIncomesByServiceType(weekIncome, "Online");
   const presentialTotals = getAttendantTotals(presentialIncome);
@@ -1246,6 +1262,9 @@ function renderWeeklyReport() {
     "",
     "💶 *Detalhes de Valores por Conta:*",
     ...formatAccountPaymentLines(accountPaymentTotals),
+    "",
+    "📲 *Detalhes de Valores por MB WAY:*",
+    ...formatMbWayAccountLines(mbWayAccountTotals),
     "",
     "🏢 *Presencial:*",
     ...presentialTotals.map((item) =>
@@ -1334,6 +1353,29 @@ function getAccountPaymentTotals(incomes) {
   );
 }
 
+function getMbWayAccountTotals(incomes) {
+  const totals = new Map();
+  incomes
+    .filter((item) => normalizeText(item.paymentMethod).replace(/\s+/g, "") === "mbway")
+    .forEach((item) => {
+      const rawPerson = String(item.transferPerson || "").trim() || inferAccountPersonFromDescription(item.description, item.paymentMethod);
+      const person = rawPerson ? normalizeAccountPersonName(rawPerson) : "Sem pessoa informada";
+      const accountNumber = getMbWayAccountNumber(item.description);
+      const accountLabel = accountNumber ? `${person} MB WAY ${accountNumber}` : `${person} MB WAY`;
+      const key = normalizeText(accountLabel).replace(/\s+/g, "");
+      if (!totals.has(key)) {
+        totals.set(key, { accountLabel, total: 0, count: 0 });
+      }
+      const target = totals.get(key);
+      target.total += Number(item.amount || 0);
+      target.count += 1;
+    });
+  return [...totals.values()].sort((a, b) =>
+    b.total - a.total ||
+    a.accountLabel.localeCompare(b.accountLabel, "pt")
+  );
+}
+
 function formatAccountPaymentLines(totals) {
   if (!totals.length) {
     return ["- Sem valores por conta no periodo."];
@@ -1345,6 +1387,20 @@ function formatAccountPaymentLines(totals) {
       ...item.missingDetails.map((detail) => `  > ${detail}`)
     ])
   ];
+}
+
+function formatMbWayAccountLines(totals) {
+  if (!totals.length) {
+    return ["- Sem valores MB WAY no periodo."];
+  }
+  return totals.map((item) =>
+    `- ${item.accountLabel} - Total: ${formatWhatsAppCurrency(item.total)} - ${item.count} registros`
+  );
+}
+
+function getResolvedPaymentPerson(item) {
+  const rawPerson = String(item.transferPerson || "").trim() || inferAccountPersonFromDescription(item.description, item.paymentMethod);
+  return rawPerson ? normalizeAccountPersonName(rawPerson) : "";
 }
 
 function normalizeAccountPersonName(name) {
@@ -1374,10 +1430,27 @@ function normalizeAccountPersonName(name) {
 function inferAccountPersonFromDescription(description, method) {
   const normalizedMethod = normalizeText(method).replace(/\s+/g, "");
   const normalizedDescription = normalizeText(description);
-  if (normalizedMethod === "mbway" && /\b183\b/.test(normalizedDescription)) {
-    return "Gabriel";
+  if (normalizedMethod === "mbway") {
+    const knownMbWayAccounts = {
+      183: "Gabriel",
+      306: "Adriano",
+      431: "Raul",
+      652: "Erica",
+      896: "Erica",
+      994: "Raul"
+    };
+    const accountNumber = getMbWayAccountNumber(description);
+    if (accountNumber && knownMbWayAccounts[accountNumber]) {
+      return knownMbWayAccounts[accountNumber];
+    }
   }
   return "";
+}
+
+function getMbWayAccountNumber(description) {
+  const normalized = normalizeText(description);
+  const afterMethod = normalized.match(/\b(?:mbway|mb)\b\s*(?:[\p{L}]+\s*)?(\d{2,6})\b/u);
+  return afterMethod ? afterMethod[1] : "";
 }
 
 function renderPaymentBreakdown(paymentTotals) {
@@ -1597,6 +1670,7 @@ function renderMonthlyReport() {
   const attendanceTotal = monthIncome.length;
   const paymentTotals = getPaymentMethodTotals(monthIncome, monthExpenses);
   const accountPaymentTotals = getAccountPaymentTotals(monthIncome);
+  const mbWayAccountTotals = getMbWayAccountTotals(monthIncome);
   const presentialIncome = getIncomesByServiceType(monthIncome, "Atendimento");
   const onlineIncome = getIncomesByServiceType(monthIncome, "Online");
   const presentialTotals = getAttendantTotals(presentialIncome);
@@ -1695,6 +1769,9 @@ function renderMonthlyReport() {
     "",
     "💶 *Detalhes de Valores por Conta:*",
     ...formatAccountPaymentLines(accountPaymentTotals),
+    "",
+    "📲 *Detalhes de Valores por MB WAY:*",
+    ...formatMbWayAccountLines(mbWayAccountTotals),
     "",
     "🏢 *Presencial:*",
     ...presentialTotals.map((item) =>
@@ -3062,14 +3139,14 @@ document.querySelector("#incomeRows").addEventListener("click", (event) => {
     deleteMovement(deleteButton.dataset.deleteType, deleteButton.dataset.deleteId);
   }
 });
-["#incomeFilterGirl", "#incomeFilterOperator", "#incomeFilterCity", "#incomeFilterPayment"].forEach((selector) => {
+["#incomeFilterGirl", "#incomeFilterOperator", "#incomeFilterCity", "#incomeFilterPayment", "#incomeFilterMbWayPerson"].forEach((selector) => {
   document.querySelector(selector).addEventListener("change", () => {
     incomeCurrentPage = 1;
     renderIncomeEntries();
   });
 });
 document.querySelector("#clearIncomeFilters").addEventListener("click", () => {
-  ["#incomeFilterGirl", "#incomeFilterOperator", "#incomeFilterCity", "#incomeFilterPayment"].forEach((selector) => {
+  ["#incomeFilterGirl", "#incomeFilterOperator", "#incomeFilterCity", "#incomeFilterPayment", "#incomeFilterMbWayPerson"].forEach((selector) => {
     document.querySelector(selector).value = "";
   });
   incomeCurrentPage = 1;
