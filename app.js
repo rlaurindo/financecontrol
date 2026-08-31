@@ -411,6 +411,25 @@ async function upsertTableSafely(name, rows) {
   }
 }
 
+async function updateMovementSafely(type, item) {
+  const tableName = type === "income" ? "entradas" : "saidas";
+  const row = type === "income" ? incomeToRow(item) : expenseToRow(item);
+  try {
+    await supabaseRequest(`${tableName}?id=eq.${encodeURIComponent(item.id)}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Prefer: "return=minimal"
+      },
+      body: JSON.stringify(row)
+    });
+    return true;
+  } catch (error) {
+    console.error(`Falha ao atualizar ${tableName} no Supabase.`, error);
+    return false;
+  }
+}
+
 async function saveSettingsSafely() {
   try {
     await supabaseRequest("configuracoes", {
@@ -2183,6 +2202,7 @@ async function editMovementDateAndAmount(type, id) {
     showToast("Movimento nao encontrado.");
     return;
   }
+  const originalItem = { ...item };
 
   if (type === "income") {
     const newClientName = window.prompt("Nome da garota:", normalizeAttendantName(item.clientName) || "");
@@ -2283,7 +2303,29 @@ async function editMovementDateAndAmount(type, id) {
 
   item.date = newDate;
   item.amount = newAmount;
-  await saveState(listName);
+
+  if (isSupabaseConfigured()) {
+    const updated = await updateMovementSafely(type, item);
+    if (!updated) {
+      Object.assign(item, originalItem);
+      renderDashboard();
+      showToast("Erro ao atualizar no Supabase. Alteracao cancelada.");
+      return;
+    }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } else {
+    await saveState(listName);
+  }
+
+  if (type === "income") {
+    await saveState("operators");
+    await saveState("paymentMethods");
+    await saveState("locations");
+  }
+  if (type === "expense") {
+    await saveState("categories");
+    await saveState("locations");
+  }
   selectedWeeklyIds = null;
   renderDashboard();
   showToast("Movimento atualizado.");
