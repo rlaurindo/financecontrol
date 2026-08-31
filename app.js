@@ -17,7 +17,10 @@ const operatorEmojiMap = {
   "â™¥": "Erica",
   "âœ¨": "Cachos",
   "ðŸ‘": "Duda",
-  "ðŸ’™": "Ana"
+  "ðŸ’™": "Ana",
+  "🤰": "Erica",
+  "🫶🏻": "Jaque",
+  "🌈": "Patricia"
 };
 const operatorSymbolMap = [
   { symbols: ["😈", "ðŸ˜ˆ"], name: "Erick" },
@@ -26,7 +29,10 @@ const operatorSymbolMap = [
   { symbols: ["❤️", "❤", "♥️", "♥", "â¤ï¸", "â™¥ï¸", "â™¥"], name: "Erica" },
   { symbols: ["✨", "âœ¨"], name: "Cachos" },
   { symbols: ["🍑", "ðŸ‘"], name: "Duda" },
-  { symbols: ["💙", "ðŸ’™"], name: "Ana" }
+  { symbols: ["💙", "ðŸ’™"], name: "Ana" },
+  { symbols: ["🤰"], name: "Erica" },
+  { symbols: ["🫶", "🫶🏻"], name: "Jaque" },
+  { symbols: ["🌈"], name: "Patricia" }
 ];
 const attendantLocationMap = {
   ray: "Porto",
@@ -2492,6 +2498,9 @@ function getOperatorFromLine(line) {
   if (codePoints.includes(0x2728)) return "Cachos";
   if (codePoints.includes(0x1F351)) return "Duda";
   if (codePoints.includes(0x1F499)) return "Ana";
+  if (codePoints.includes(0x1F930)) return "Erica";
+  if (codePoints.includes(0x1FAF6)) return "Jaque";
+  if (codePoints.includes(0x1F308)) return "Patricia";
   return "Nao identificado";
 }
 
