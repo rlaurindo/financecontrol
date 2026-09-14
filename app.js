@@ -8,6 +8,10 @@ const availableThemes = ["green", "blue", "gray", "pink", "purple"];
 const AUTH_SESSION_KEY = "controle-integrado-supabase-session";
 const LAST_IMPORT_KEY = "controle-integrado-last-import";
 const USER_THEME_KEY_PREFIX = "controle-integrado-theme";
+const APP_VERSION = "20260914-import-permission";
+const defaultPermissions = {
+  canImportWhatsapp: false
+};
 const operatorEmojiMap = {
   "ðŸ˜ˆ": "Erick",
   "ðŸ˜»": "Xavier",
@@ -135,6 +139,7 @@ let weeklyCurrentPage = 1;
 let monthlyCurrentPage = 1;
 let expenseCurrentPage = 1;
 let incomeCurrentPage = 1;
+let currentUserPermissions = { ...defaultPermissions };
 const RECORD_PAGE_SIZE = 20;
 const INCOME_PAGE_SIZE = RECORD_PAGE_SIZE;
 
@@ -2074,6 +2079,72 @@ function getCurrentUserThemeKey() {
   return `${USER_THEME_KEY_PREFIX}:${userKey}`;
 }
 
+function getCurrentUserEmail() {
+  return (getAuthSession()?.user?.email || "").trim().toLowerCase();
+}
+
+function getCurrentUserId() {
+  return (getAuthSession()?.user?.id || "").trim();
+}
+
+function applyUserPermissions() {
+  document.body.classList.toggle("can-import-whatsapp", Boolean(currentUserPermissions.canImportWhatsapp));
+  const activeImportPanel = document.querySelector("#import.active");
+  if (activeImportPanel && !currentUserPermissions.canImportWhatsapp) {
+    activateTab("dashboard");
+  }
+}
+
+async function loadUserPermissions() {
+  currentUserPermissions = { ...defaultPermissions };
+  applyUserPermissions();
+  const email = getCurrentUserEmail();
+  const userId = getCurrentUserId();
+  if ((!email && !userId) || !isSupabaseConfigured()) {
+    return currentUserPermissions;
+  }
+  try {
+    let rows = [];
+    if (userId) {
+      try {
+        rows = await supabaseRequest(`users?id=eq.${encodeURIComponent(userId)}&select=can_import_whatsapp&limit=1`);
+      } catch (error) {
+        console.warn("Permissoes nao encontradas por id. Tentando por email.", error);
+      }
+    }
+    if (!rows?.length && email) {
+      rows = await supabaseRequest(`users?email=eq.${encodeURIComponent(email)}&select=can_import_whatsapp&limit=1`);
+    }
+    currentUserPermissions = {
+      canImportWhatsapp: Boolean(rows?.[0]?.can_import_whatsapp)
+    };
+  } catch (error) {
+    console.error("Falha ao carregar permissoes do utilizador.", error);
+    currentUserPermissions = { ...defaultPermissions };
+  }
+  applyUserPermissions();
+  return currentUserPermissions;
+}
+
+function activateTab(tabName) {
+  if (tabName === "import" && !currentUserPermissions.canImportWhatsapp) {
+    showToast("Importar WhatsApp nao esta disponivel para este utilizador.");
+    tabName = "dashboard";
+  }
+  const targetButton = document.querySelector(`.tab-button[data-tab="${tabName}"]`);
+  const targetPanel = document.querySelector(`#${tabName}`);
+  if (!targetButton || !targetPanel) {
+    return;
+  }
+  document.querySelectorAll(".tab-button").forEach((item) => item.classList.remove("active"));
+  document.querySelectorAll(".tab-panel").forEach((item) => item.classList.remove("active"));
+  targetButton.classList.add("active");
+  targetPanel.classList.add("active");
+  renderCashFlowChart();
+  renderWeeklyReport();
+  renderMonthlyReport();
+}
+
 function getStoredUserTheme() {
   const theme = localStorage.getItem(getCurrentUserThemeKey());
   return availableThemes.includes(theme) ? theme : null;
@@ -2097,6 +2168,8 @@ function setAuthenticated(session) {
   } else {
     sessionStorage.removeItem(AUTH_SESSION_KEY);
     document.body.classList.remove("authenticated");
+    currentUserPermissions = { ...defaultPermissions };
+    applyUserPermissions();
   }
 }
 
@@ -2106,6 +2179,7 @@ async function refreshApplication() {
     button.disabled = true;
     button.textContent = "Atualizando...";
   }
+  await loadUserPermissions();
   await loadRemoteState();
   renderDashboard();
   if (button) {
@@ -2164,6 +2238,7 @@ async function handleLogin(event) {
     const session = await response.json();
     setAuthenticated(session);
     form.reset();
+    await loadUserPermissions();
     await loadRemoteState();
     renderDashboard();
     showToast("Login efetuado.");
@@ -3088,13 +3163,7 @@ function setDefaultDates() {
 
 document.querySelectorAll(".tab-button").forEach((button) => {
   button.addEventListener("click", () => {
-    document.querySelectorAll(".tab-button").forEach((item) => item.classList.remove("active"));
-    document.querySelectorAll(".tab-panel").forEach((item) => item.classList.remove("active"));
-    button.classList.add("active");
-    document.querySelector(`#${button.dataset.tab}`).classList.add("active");
-    renderCashFlowChart();
-    renderWeeklyReport();
-    renderMonthlyReport();
+    activateTab(button.dataset.tab);
   });
 });
 
@@ -3432,12 +3501,14 @@ window.addEventListener("resize", () => {
 });
 
 document.querySelector("#todayLabel").textContent = dateFormatter.format(today);
+document.querySelector("#appVersionLabel").textContent = `versao ${APP_VERSION}`;
 
 async function initializeApp() {
   setDefaultDates();
   applyTheme(getActiveTheme());
   const authenticated = await verifyAuthSession();
   if (authenticated) {
+    await loadUserPermissions();
     await loadRemoteState();
     renderDashboard();
   }

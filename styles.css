@@ -97,6 +97,11 @@ body:not(.authenticated) .app-shell {
   display: none;
 }
 
+body:not(.can-import-whatsapp) .tab-button[data-tab="import"],
+body:not(.can-import-whatsapp) #import {
+  display: none;
+}
+
 .auth-screen {
   align-items: center;
   background: var(--bg);
