@@ -8,7 +8,7 @@ const availableThemes = ["green", "blue", "gray", "pink", "purple"];
 const AUTH_SESSION_KEY = "controle-integrado-supabase-session";
 const LAST_IMPORT_KEY = "controle-integrado-last-import";
 const USER_THEME_KEY_PREFIX = "controle-integrado-theme";
-const APP_VERSION = "20260914-import-permission";
+const APP_VERSION = "20260917-current-month";
 const defaultPermissions = {
   canImportWhatsapp: false
 };
@@ -111,6 +111,20 @@ const dateFormatter = new Intl.DateTimeFormat("pt-PT", {
 
 const today = new Date();
 const currentYear = today.getFullYear();
+
+function capitalizeFirst(value) {
+  return value ? value.charAt(0).toUpperCase() + value.slice(1) : "";
+}
+
+function updateCurrentMonthLabels() {
+  const monthName = capitalizeFirst(
+    new Intl.DateTimeFormat("pt-PT", { month: "long" }).format(today)
+  );
+  const title = `Controle Integrado de ${monthName}`;
+  document.querySelector("#sidebarMonthLabel").textContent = monthName;
+  document.querySelector("#mainTitle").textContent = title;
+  document.title = title;
+}
 
 function createId() {
   if (globalThis.crypto?.randomUUID) {
@@ -3502,6 +3516,7 @@ window.addEventListener("resize", () => {
 
 document.querySelector("#todayLabel").textContent = dateFormatter.format(today);
 document.querySelector("#appVersionLabel").textContent = `versao ${APP_VERSION}`;
+updateCurrentMonthLabels();
 
 async function initializeApp() {
   setDefaultDates();

@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Controle Integrado de Maio</title>
+    <title>Controle Integrado</title>
     <link rel="stylesheet" href="styles.css?v=20260526-paginacao-tema" />
   </head>
   <body>
@@ -34,7 +34,7 @@
           <img class="brand-logo" src="./assets/logo.png" alt="RLL Solutions" />
           <div>
             <strong>RLL Solutions</strong>
-            <span>Maio</span>
+            <span id="sidebarMonthLabel"></span>
           </div>
         </div>
         <nav class="tabs" aria-label="Seccoes da aplicacao">
@@ -51,7 +51,7 @@
         <section class="topbar" aria-label="Resumo principal">
           <div>
             <p class="eyebrow">Gestao financeira</p>
-            <h1>Controle Integrado de Maio</h1>
+            <h1 id="mainTitle">Controle Integrado</h1>
             <small id="appVersionLabel">versao 20260914-import-permission</small>
           </div>
           <div class="date-chip">
@@ -757,6 +757,6 @@
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
     <script src="supabase-config.js?v=20260526-paginacao-tema"></script>
-    <script src="app.js?v=20260914-import-permission"></script>
+    <script src="app.js?v=20260917-current-month"></script>
   </body>
 </html>
